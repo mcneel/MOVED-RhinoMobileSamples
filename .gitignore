@@ -1,0 +1,26 @@
+# Extension ignores
+*.userprefs
+*.DS_Store
+*.dll
+
+# Packages
+/packages
+
+# Testing
+/test-results
+
+# RhinoMobile.Core
+HelloRhinoMobile/RhinoMobile.Core/bin/
+HelloRhinoMobile/RhinoMobile.Core/obj/
+
+# - HelloRhino.Droid
+HelloRhinoMobile/HelloRhino.Droid/bin/
+HelloRhinoMobile/HelloRhino.Droid/obj/
+
+# - HelloRhino.Touch
+HelloRhinoMobile/HelloRhino.Touch/bin/
+HelloRhinoMobile/HelloRhino.Touch/obj/
+HelloRhinoMobile/HelloRhino.Touch/libs/libopennurbs.a
+*.so
+
+*.a
