@@ -54,6 +54,17 @@ namespace HelloRhino.Touch
     RhGLFramebufferObject  m_visibleFBO; // FBO created by OpenTk framework...
     RhGLFramebufferObject  m_msaaFBO;    // FBO we create for MSAA rendering...
     RhGLFramebufferObject  m_activeFBO;  // placeholder that tracks which FBO is currently in use...
+
+		// restore view animation variables
+		bool m_atInitialPosition;
+		bool m_startRestoreAtInitialPosition;
+		bool m_inAnimatedRestoreView;
+		ViewportInfo m_initialPosition;
+		ViewportInfo m_lastPosition;
+		ViewportInfo m_restoreViewStartViewport;
+		ViewportInfo m_restoreViewFinishViewport;
+		DateTime m_restoreViewStartTime;
+		TimeSpan m_restoreViewTotalTime;
 		#endregion
 
 		#region constructors
@@ -83,6 +94,9 @@ namespace HelloRhino.Touch
 
 		/// <value> ZoomRecognizer listens for pinch gestures </value>
 		public UIPinchGestureRecognizer ZoomRecognizer { get; private set; }
+
+		/// <value> The double-tap gesture recognizer listens for double-taps. </value>
+		public UITapGestureRecognizer DoubleTapGestureRecognizer { get; private set; }
 
 		/// <value> IsAnimating is true if the view is currently changing. </value>
 		public bool IsAnimating { get; private set; }
@@ -277,6 +291,9 @@ namespace HelloRhino.Touch
         // enable our active FBO...
         m_activeFBO.Enable ();
 
+				if (m_inAnimatedRestoreView)
+					AnimateRestoreView ();
+
 				// render the model...
 				m_renderer.RenderModel (App.Manager.CurrentModel, m_viewport);
 
@@ -345,6 +362,11 @@ namespace HelloRhino.Touch
 			ResizeViewport ();
 
 			m_renderer.Viewport = m_viewport;
+
+			// save initial viewport settings for restoreView
+			m_initialPosition = new ViewportInfo (m_viewport);
+			m_lastPosition = new ViewportInfo (m_viewport);
+			m_atInitialPosition = true;
 		}
 
 		/// <summary>
@@ -472,6 +494,13 @@ namespace HelloRhino.Touch
 			OrbitDollyRecognizer.MaximumNumberOfTouches = 2;
 			OrbitDollyRecognizer.Enabled = false;
 			AddGestureRecognizer (OrbitDollyRecognizer);
+
+			// Zoom Extents / Restore Last View
+			DoubleTapGestureRecognizer = new UITapGestureRecognizer ();
+			DoubleTapGestureRecognizer.AddTarget (this, new Selector ("ZoomExtentsWithGesture"));
+			DoubleTapGestureRecognizer.NumberOfTapsRequired = 2;
+			DoubleTapGestureRecognizer.Enabled = false;
+			AddGestureRecognizer (DoubleTapGestureRecognizer);
 		}
 
 		protected void EnableAllGestureRecognizers ()
@@ -484,6 +513,35 @@ namespace HelloRhino.Touch
 		{
 			foreach (UIGestureRecognizer recognizer in GestureRecognizers)
 				recognizer.Enabled = false;
+		}
+
+		/// <summary>
+		/// ZoomExtentsWithGesture is called when a DoubleTapGesture is detected.
+		/// </summary>
+		[Export("ZoomExtentsWithGesture")]
+		private void ZoomExtentsWithGesture (UIGestureRecognizer gesture)
+		{
+			if (m_viewport == null)
+				return;
+
+			if (gesture.State == UIGestureRecognizerState.Ended) {
+				StartInactivityTimer ();
+
+				m_startRestoreAtInitialPosition = m_atInitialPosition;
+
+				Rhino.DocObjects.ViewportInfo targetPosition = new ViewportInfo();
+
+				if (m_startRestoreAtInitialPosition) {
+					// animate from current position (which is initial position) back to last position
+					targetPosition = m_lastPosition;
+				} else {
+					// animate from current position to initial position
+					targetPosition = m_initialPosition;
+					m_lastPosition = new ViewportInfo(m_viewport);
+				}
+			
+				StartRestoreViewTo (targetPosition);
+			}
 		}
 
 		/// <summary>
@@ -551,6 +609,7 @@ namespace HelloRhino.Touch
 				}
 
 				SetNeedsDisplay ();
+				m_atInitialPosition = false;
 			}
 
 			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
@@ -561,6 +620,126 @@ namespace HelloRhino.Touch
 				StartInactivityTimer ();
 			}
 
+		}
+		#endregion
+
+		#region Animate Restore View
+		/// <summary>
+		/// StartRestoreViewTo is a helper method that is called by ZoomExtentsWithGesture to
+		/// return the viewport back to it's "home" view.
+		/// </summary>
+		private void StartRestoreViewTo (Rhino.DocObjects.ViewportInfo targetPosition)
+		{
+			if (m_viewport == null)
+				return;
+
+			m_inAnimatedRestoreView = true;
+			App.Manager.FastDrawing = true;
+
+			UserInteractionEnabled = false;
+			m_restoreViewStartTime = DateTime.Now;
+			m_restoreViewTotalTime = new TimeSpan (0, 0, 0, 0, 500);
+
+			m_restoreViewStartViewport = new ViewportInfo(m_viewport); // start from current position
+			m_restoreViewFinishViewport = new ViewportInfo(targetPosition); // end on the target position
+
+			// fix frustum aspect to match current screen aspect
+			m_restoreViewFinishViewport.FrustumAspect = m_viewport.FrustumAspect;
+		}
+
+		/// <summary>
+		/// Tween from original view to 
+		/// </summary>
+		private void AnimateRestoreView ()
+		{
+			var restoreViewCurrentTime = DateTime.Now;																				
+
+			var currentTime = restoreViewCurrentTime;																						
+			var startTime = m_restoreViewStartTime;																							
+			var timeElapsed = currentTime.Subtract (startTime);																	
+			var timeElapsedInMs = timeElapsed.TotalMilliseconds;																
+			var totalTimeOfAnimationInMs = m_restoreViewTotalTime.TotalMilliseconds;						
+			double percentCompleted = timeElapsedInMs / totalTimeOfAnimationInMs;
+
+			if (percentCompleted > 1) {
+				// Animation is completed. Perform one last draw.
+				percentCompleted = 1;
+				m_inAnimatedRestoreView = false;
+				UserInteractionEnabled = true;
+				m_atInitialPosition = !m_startRestoreAtInitialPosition;
+			}
+
+			// Get some data from the starting view
+			Rhino.Geometry.Point3d sourceTarget = m_restoreViewStartViewport.TargetPoint;
+			Rhino.Geometry.Point3d sourceCamera = m_restoreViewStartViewport.CameraLocation;
+			double sourceDistance = sourceCamera.DistanceTo (sourceTarget);
+			Rhino.Geometry.Vector3d sourceUp = m_restoreViewStartViewport.CameraUp;
+			sourceUp.Unitize ();
+
+			// Get some data from the ending view
+			Rhino.Geometry.Point3d targetTarget = m_restoreViewFinishViewport.TargetPoint;
+			Rhino.Geometry.Point3d targetCamera = m_restoreViewFinishViewport.CameraLocation;
+			double targetDistance = targetCamera.DistanceTo (targetTarget);
+			Rhino.Geometry.Vector3d targetCameraDir = targetCamera - targetTarget;
+			Rhino.Geometry.Vector3d targetUp = m_restoreViewFinishViewport.CameraUp;
+			targetUp.Unitize ();
+
+			// Adjust the target camera location so that the starting camera to target distance
+			// and the ending camera to target distance are the same.  Doing this will calculate
+			// a constant rotational angular momentum when tweening the camera location.
+			// Further down we independently tween the camera to target distance.
+			targetCameraDir.Unitize ();
+			targetCameraDir *= sourceDistance;
+			targetCamera = targetCameraDir + targetTarget;
+
+			// calculate interim viewport values
+			double frameDistance = ViewportInfoExtensions.CosInterp(sourceDistance, targetDistance, percentCompleted);
+
+			Rhino.Geometry.Point3d frameTarget = new Rhino.Geometry.Point3d();
+
+			frameTarget.X = ViewportInfoExtensions.CosInterp(sourceTarget.X, targetTarget.X, percentCompleted);
+			frameTarget.Y = ViewportInfoExtensions.CosInterp(sourceTarget.Y, targetTarget.Y, percentCompleted);
+			frameTarget.Z = ViewportInfoExtensions.CosInterp(sourceTarget.Z, targetTarget.Z, percentCompleted);
+
+			var origin = Rhino.Geometry.Point3d.Origin;
+			Rhino.Geometry.Point3d frameCamera = origin + (ViewportInfoExtensions.Slerp((sourceCamera - origin), (targetCamera - origin), percentCompleted));
+			Rhino.Geometry.Vector3d frameCameraDir = frameCamera - frameTarget;
+
+			// adjust the camera location along the camera direction vector to preserve the target location and the camera distance
+			frameCameraDir.Unitize();
+			frameCameraDir *= frameDistance;
+			frameCamera = frameCameraDir + frameTarget;
+
+			Rhino.Geometry.Vector3d frameUp = new Rhino.Geometry.Vector3d(ViewportInfoExtensions.Slerp (sourceUp, targetUp, percentCompleted));
+
+			if (percentCompleted >= 1) {
+				// put the last redraw at the exact end point to eliminate any rounding errors
+				m_viewport.SetTarget (m_restoreViewFinishViewport.TargetPoint, m_restoreViewFinishViewport.CameraLocation, m_restoreViewFinishViewport.CameraUp);
+			} else {	
+				m_viewport.SetTarget (frameTarget, frameCamera, frameUp);
+			}
+
+			SetFrustum (m_viewport, App.Manager.CurrentModel.BBox);
+
+			SetNeedsDisplay ();
+
+			if (!m_inAnimatedRestoreView) {
+				// App.Manager.FastDrawing is still enabled and we just scheduled a draw of the model at the final location.
+				// This entirely completes the animation. Now schedule one more redraw of the model with FastDrawing disabled
+				// and this redraw will be done at exactly the same postion.  This prevents the final animation frame
+				// from jumping to the final location because the final draw will take longer with FastDrawing disabled.
+				PerformSelector (new Selector ("RedrawDetailed"), null, 0.05);
+			}
+		} 
+
+		/// <summary>
+		/// Redraw the final frame of an animation in "slow drawing" mode
+		/// </summary>
+		[Export("RedrawDetailed")]
+		private void RedrawDetailed ()
+		{
+			App.Manager.FastDrawing = false;
+			SetNeedsDisplay ();
 		}
 		#endregion
 
