@@ -10,7 +10,7 @@ Please see the following McNeel Wiki Article for instructions:
 Contents
 --------------------
 
-1. HelloRhinoMobile: Start Here.  Open a 3dm and draw it to the screen.  Manipulate the view with basic gestures.
+1. HelloRhinoMobile: Open a 3dm and draw it to the screen.  Manipulate the view with gestures.
 2. ListLayers (coming soon): Read a 3dm and write the layer names into a standard list.
 
 Authors
