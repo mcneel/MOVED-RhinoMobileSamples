@@ -119,12 +119,12 @@
   <ItemGroup>
     <Compile Include="Main.cs" />
     <Compile Include="AppDelegate.cs" />
-    <Compile Include="EAGLView.cs" />
     <Compile Include="OrbitDollyGestureRecognizer.cs" />
     <Compile Include="HelloRhinoViewController.cs" />
     <Compile Include="HelloRhinoViewController.designer.cs">
       <DependentUpon>HelloRhinoViewController.cs</DependentUpon>
     </Compile>
+    <Compile Include="HelloRhinoView.cs" />
   </ItemGroup>
   <ItemGroup>
     <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />

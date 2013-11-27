@@ -35,7 +35,7 @@ namespace HelloRhino.Droid
 
 			SetContentView (Resource.Layout.Main);
 
-			FindViewById (Resource.Id.glview);
+			FindViewById (Resource.Id.hellorhinoview);
 
 			var intLayout = FindViewById<RelativeLayout> (Resource.Id.relLayout1);
 			if (App.Manager.CurrentModel.IsReadyForRendering) {
@@ -61,7 +61,7 @@ namespace HelloRhino.Droid
 		{
 			// never forget to do this!
 			base.OnPause ();
-			var view = FindViewById<GLView> (Resource.Id.glview);
+			var view = FindViewById<HelloRhinoView> (Resource.Id.hellorhinoview);
 			view.Pause ();
 		}
 
@@ -72,7 +72,7 @@ namespace HelloRhino.Droid
 		{
 			// never forget to do this!
 			base.OnResume ();
-			var view = FindViewById<GLView> (Resource.Id.glview);
+			var view = FindViewById<HelloRhinoView> (Resource.Id.hellorhinoview);
 			view.Resume ();
 		}
 

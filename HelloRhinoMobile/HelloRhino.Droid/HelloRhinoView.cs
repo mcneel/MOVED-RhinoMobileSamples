@@ -1,5 +1,5 @@
 //
-// GLView.cs
+// HelloRhinoView.cs
 // HelloRhino.Droid
 //
 // Created by dan (dan@mcneel.com) on 9/19/2013
@@ -57,7 +57,7 @@ using FramebufferSlot = OpenTK.Graphics.ES20.All;
 namespace HelloRhino.Droid
 {
 
-	class GLView : AndroidGameView
+	class HelloRhinoView : AndroidGameView
 	{
 
 		enum InitializationState
@@ -89,17 +89,17 @@ namespace HelloRhino.Droid
 		#endregion
 
 		#region constructors
-		public GLView (Context context) : base (context)
+		public HelloRhinoView (Context context) : base (context)
 		{
 			m_zoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
 		}
 
-		public GLView (Context context, IAttributeSet attrs) : base (context, attrs)
+		public HelloRhinoView (Context context, IAttributeSet attrs) : base (context, attrs)
 		{
 			m_zoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
 		}
 
-		public GLView (IntPtr handle, Android.Runtime.JniHandleOwnership transfer)
+		public HelloRhinoView (IntPtr handle, Android.Runtime.JniHandleOwnership transfer)
 			: base (handle, transfer)
 		{
 

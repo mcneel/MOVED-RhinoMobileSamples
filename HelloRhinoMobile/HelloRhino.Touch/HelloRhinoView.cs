@@ -1,5 +1,5 @@
 //
-// EAGLView.cs
+// HelloRhinoView.cs
 // HelloRhino.Touch
 //
 // Created by dan (dan@mcneel.com) on 9/19/2013
@@ -32,8 +32,8 @@ using RhinoMobile.Model;
 namespace HelloRhino.Touch
 {
 
-	[Register ("EAGLView")]
-	public class EAGLView : iPhoneOSGameView
+	[Register ("HelloRhinoView")]
+	public class HelloRhinoView : iPhoneOSGameView
 	{
 		enum InitializationState
 		{
@@ -69,12 +69,11 @@ namespace HelloRhino.Touch
 
 		#region constructors
 		[Export("initWithCoder:")]
-		public EAGLView (NSCoder coder) : base (coder)
+		public HelloRhinoView (NSCoder coder) : base (coder)
 		{
 			LayerRetainsBacking = true;
 			LayerColorFormat = EAGLColorFormat.RGBA8;
 			m_renderer = new ES2Renderer ();
-			//ES2Renderer.TestGraphicsModes ();
 
 			ContentScaleFactor = UIScreen.MainScreen.Scale;
 

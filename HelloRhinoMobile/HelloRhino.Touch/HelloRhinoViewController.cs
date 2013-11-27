@@ -25,12 +25,12 @@ namespace HelloRhino.Touch
 	public partial class HelloRhinoViewController : UIViewController
 	{
 		#region properties
-		/// <value> The backing EAGLView associated with this Controller. </value>
-		new EAGLView View 
+		/// <value> The backing HelloRhinoView associated with this Controller. </value>
+		new HelloRhinoView View 
 		{ 
 			get 
 			{ 
-				return (EAGLView)base.View; 
+				return (HelloRhinoView)base.View; 
 			} 
 		}
 

@@ -17,11 +17,11 @@ namespace HelloRhino.Droid
 	class ZoomScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener
 	{
 		#region members
-		private readonly GLView m_view;
+		private readonly HelloRhinoView m_view;
 		#endregion
 
 		#region constructors
-		public ZoomScaleListener(GLView view)
+		public ZoomScaleListener(HelloRhinoView view)
 		{
 			m_view = view;
 		}
