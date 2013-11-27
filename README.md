@@ -1,6 +1,6 @@
 RhinoMobileSamples
 =========================
-C#-based RhinoMobile samples using Xamarin's iOS and Android twins.
+C#-based [RhinoMobile](http://github.com/mcneel/RhinoMobile) samples based on using Xamarin's iOS and Android twins.
 
 Getting Started
 --------------------
@@ -9,9 +9,9 @@ Please see the following McNeel Wiki Article for instructions:
 
 Contents
 --------------------
-HelloRhinoMobile         - Start Here.  Open a 3dm and draw it to the screen.  Manipulate the view with basic gestures.
-ListLayers (coming soon) - Read a 3dm and write the layer names into a standard list.
-DrawEdges (coming soon)  - Take or open a photo, trace points over the photo, convert this to a curve, save to a 3dm.
+
+1. HelloRhinoMobile: Start Here.  Open a 3dm and draw it to the screen.  Manipulate the view with basic gestures.
+2. ListLayers (coming soon): Read a 3dm and write the layer names into a standard list.
 
 Authors
 -------
