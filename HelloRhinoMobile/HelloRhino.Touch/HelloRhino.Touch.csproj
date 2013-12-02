@@ -32,7 +32,6 @@
     <OutputPath>bin\iPhoneSimulator\Release</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <MtouchLink>None</MtouchLink>
     <ConsolePause>false</ConsolePause>
     <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
@@ -159,7 +158,6 @@
     <BundleResource Include="Resources\Icon76%402x.png" />
     <BundleResource Include="Resources\warning32.png" />
     <BundleResource Include="Resources\warning32%402x.png" />
-    <BundleResource Include="Resources\Models\Drill.3dm" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
