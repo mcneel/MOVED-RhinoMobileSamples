@@ -124,6 +124,7 @@
       <DependentUpon>HelloRhinoViewController.cs</DependentUpon>
     </Compile>
     <Compile Include="HelloRhinoView.cs" />
+    <Compile Include="App.cs" />
   </ItemGroup>
   <ItemGroup>
     <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />

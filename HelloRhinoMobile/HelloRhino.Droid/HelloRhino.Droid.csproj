@@ -51,6 +51,7 @@
     <Compile Include="Application.cs" />
     <Compile Include="ZoomScaleListener.cs" />
     <Compile Include="HelloRhinoView.cs" />
+    <Compile Include="App.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Properties\AndroidManifest.xml" />

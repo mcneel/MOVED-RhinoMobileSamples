@@ -194,6 +194,7 @@ namespace HelloRhino.Droid
 		{
 			if (m_initialized == InitializationState.Uninitialized) {
 				m_renderer = new ES2Renderer ();
+				m_renderer.AndroidContext = App.Manager.ApplicationContext;
 
 				// Create the depth buffer...
 				if (m_depth_buffer_handle == Globals.UNSET_HANDLE) {

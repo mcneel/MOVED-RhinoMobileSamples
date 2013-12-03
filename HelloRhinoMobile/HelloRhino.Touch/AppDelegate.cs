@@ -38,8 +38,8 @@ namespace HelloRhino.Touch
 			// create a new window instance based on the screen size
 			m_window = new UIWindow (UIScreen.MainScreen.Bounds);
 
-			// call into rhinomobile to run rhino-specific setup
-			RhinoMobile.App.Manager.Setup ();
+			// Create and setup an App Manager
+			App.Manager.Setup ();
 
 			// load the appropriate UI, depending on whether the app is running on an iPhone or iPad
 			m_viewController = new HelloRhinoViewController ();

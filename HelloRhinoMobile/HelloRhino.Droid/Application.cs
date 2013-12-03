@@ -27,9 +27,9 @@ namespace HelloRhino.Droid
 		{
 			base.OnCreate ();
 
-			RhinoMobile.App.Manager.ApplicationContext = base.ApplicationContext;
+			App.Manager.ApplicationContext = base.ApplicationContext;
 
-			RhinoMobile.App.Manager.Setup ();
+			App.Manager.Setup ();
 		}
 
 	}
