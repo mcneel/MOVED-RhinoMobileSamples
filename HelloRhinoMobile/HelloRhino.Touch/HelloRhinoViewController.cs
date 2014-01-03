@@ -22,7 +22,7 @@ using RhinoMobile.Model;
 namespace HelloRhino.Touch
 {
 	[Register ("HelloRhinoViewController")]
-	public partial class HelloRhinoViewController : UIViewController
+	public partial class HelloRhinoViewController : UIViewController, IDisposable
 	{
 		#region properties
 		/// <value> The backing HelloRhinoView associated with this Controller. </value>
@@ -78,10 +78,49 @@ namespace HelloRhino.Touch
 		}
 		#endregion
 
-		#region constructors
+		#region constructors and disposal
 		public HelloRhinoViewController () : base (UserInterfaceIdiomIsPhone ? "HelloRhinoViewController_iPhone" : "HelloRhinoViewController_iPad", null)
 		{
 
+		}
+
+		/// <summary>
+		/// Passively reclaims unmanaged resources when the class user did not explicitly call Dispose().
+		/// </summary>
+		~ HelloRhinoViewController () { Dispose (false); }
+
+		/// <summary>
+		/// Actively reclaims unmanaged resources that this instance uses.
+		/// </summary>
+		public new void Dispose()
+		{
+			try {
+				Dispose(true);
+				GC.SuppressFinalize(this);
+			}
+			finally {
+				base.Dispose (true);
+				NSNotificationCenter.DefaultCenter.RemoveObserver (this);
+			}
+		}
+
+		/// <summary>
+		/// <para>This method is called with argument true when class user calls Dispose(), while with argument false when
+		/// the Garbage Collector invokes the finalizer, or Finalize() method.</para>
+		/// <para>You must reclaim all used unmanaged resources in both cases, and can use this chance to call Dispose on disposable fields if the argument is true.</para>
+		/// </summary>
+		/// <param name="disposing">true if the call comes from the Dispose() method; false if it comes from the Garbage Collector finalizer.</param>
+		private new void Dispose (bool disposing)
+		{
+			// Free unmanaged resources...
+
+			// Free managed resources...but only if called from Dispose
+			// (If called from Finalize then the objects might not exist anymore)
+			if (disposing) {
+
+				ReleaseDesignerOutlets ();
+
+			}	
 		}
 		#endregion
 
@@ -119,16 +158,6 @@ namespace HelloRhino.Touch
 		}
 
 		/// <summary>
-		/// Dispose is overridden here to remove KVO observing from NSNotification center.
-		/// </summary>
-		protected override void Dispose (bool disposing)
-		{
-			base.Dispose (disposing);
-
-			NSNotificationCenter.DefaultCenter.RemoveObserver (this);
-		}
-
-		/// <summary>
 		/// ViewWillAppear is called by CocoaTouch just before the view will appear.
 		/// </summary>
 		public override void ViewWillAppear (bool animated)
@@ -161,6 +190,7 @@ namespace HelloRhino.Touch
 		{
 			base.ViewWillDisappear (animated);
 			View.StopAnimating ();
+			App.Manager.CurrentModel.MeshPrep -= ObserveMeshPrep;
 		}
 
 		/// <summary>

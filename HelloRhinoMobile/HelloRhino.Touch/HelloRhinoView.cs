@@ -35,7 +35,7 @@ namespace HelloRhino.Touch
 	[Register ("HelloRhinoView")]
 	public class HelloRhinoView : iPhoneOSGameView
 	{
-		enum InitializationState
+		public enum InitializationState
 		{
 			Uninitialized,
 			Initialized,
@@ -44,47 +44,19 @@ namespace HelloRhino.Touch
 
 		#region members
 		//rendering fields
-		InitializationState m_initialized = InitializationState.Uninitialized;
-		readonly ES2Renderer m_renderer;
-		CADisplayLink m_displayLink;
-		ViewportInfo m_viewport;
 		int m_frameBufferWidth, m_frameBufferHeight;
 		int m_frameInterval;
-
-    RhGLFramebufferObject  m_visibleFBO; // FBO created by OpenTk framework...
-    RhGLFramebufferObject  m_msaaFBO;    // FBO we create for MSAA rendering...
-    RhGLFramebufferObject  m_activeFBO;  // placeholder that tracks which FBO is currently in use...
 
 		// restore view animation variables
 		bool m_atInitialPosition;
 		bool m_startRestoreAtInitialPosition;
 		bool m_inAnimatedRestoreView;
-		ViewportInfo m_initialPosition;
-		ViewportInfo m_lastPosition;
-		ViewportInfo m_restoreViewStartViewport;
-		ViewportInfo m_restoreViewFinishViewport;
-		DateTime m_restoreViewStartTime;
-		TimeSpan m_restoreViewTotalTime;
-		#endregion
-
-		#region constructors
-		[Export("initWithCoder:")]
-		public HelloRhinoView (NSCoder coder) : base (coder)
-		{
-			LayerRetainsBacking = true;
-			LayerColorFormat = EAGLColorFormat.RGBA8;
-			m_renderer = new ES2Renderer ();
-
-			ContentScaleFactor = UIScreen.MainScreen.Scale;
-
-			SetupGestureRecognizers ();
-
-			// subscribe to mesh prep events in the model...
-			App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
-		}
 		#endregion
 
 		#region properties
+		/// <value> The renderer associated with this view. </value>
+		public ES2Renderer Renderer { get; private set; }
+
 		/// <value> InactivityTimer keeps track of how long the view has not changed at all. </value>
 		private Timer InactivityTimer { get; set; }
 
@@ -96,6 +68,42 @@ namespace HelloRhino.Touch
 
 		/// <value> The double-tap gesture recognizer listens for double-taps. </value>
 		public UITapGestureRecognizer DoubleTapGestureRecognizer { get; private set; }
+
+		/// <value> True if this view's OpenGL state is setup </value>
+		public InitializationState Initialized { get; set; }
+
+		/// <value> DisplayLink for this view </value>
+		protected CADisplayLink DisplayLink { get; set; }
+
+		/// <value> The ViewportInfo for this view </value>
+		protected ViewportInfo Viewport { get; set; }
+
+		/// <value> The FrameBufferObject created by OpenTk framework </value>
+		protected RhGLFramebufferObject VisibleFBO { get; set; }
+
+		/// <value> The FrameBufferObject we create for Multi-Sample Anti-aliasing rendering. </value>
+		protected RhGLFramebufferObject MsaaFBO { get; set; }
+
+		/// <value> The FrameBufferObject placeholder that tracks which FBO is currently in use. </value>
+		protected RhGLFramebufferObject ActiveFBO { get; set; }
+
+		/// <value> The initial starting view position. </value>
+		protected ViewportInfo InitialPosition { get; set; }
+
+		/// <value> The last position of the Viewport before any other change. </value>
+		protected ViewportInfo LastPosition { get; set; }
+
+		/// <value> The Viewport to restore from - for tweening. </value>
+		protected ViewportInfo RestoreViewStartViewport { get; set; }
+
+		/// <value> The Viewport to restore to - for tweening </value>
+		protected ViewportInfo RestoreViewFinishViewport { get; set; }
+
+		/// <value> The startTime of the restore view action. </value>
+		protected DateTime RestoreViewStartTime { get; set; }
+
+		/// <value> The total time of the restore view action. </value>
+		protected TimeSpan RestoreViewTotalTime { get; set; }
 
 		/// <value> IsAnimating is true if the view is currently changing. </value>
 		public bool IsAnimating { get; private set; }
@@ -116,6 +124,25 @@ namespace HelloRhino.Touch
 					StartAnimating ();
 				}
 			}
+		}
+		#endregion
+
+		#region constructors and disposal
+		[Export("initWithCoder:")]
+		public HelloRhinoView (NSCoder coder) : base (coder)
+		{
+			LayerRetainsBacking = true;
+			LayerColorFormat = EAGLColorFormat.RGBA8;
+			Renderer = new ES2Renderer ();
+
+			Initialized = InitializationState.Uninitialized;
+
+			ContentScaleFactor = UIScreen.MainScreen.Scale;
+
+			SetupGestureRecognizers ();
+
+			// subscribe to mesh prep events in the model...
+			App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
 		}
 		#endregion
 
@@ -180,7 +207,7 @@ namespace HelloRhino.Touch
 		/// </summary>
 		InitializationState InitializeOpenGL()
 		{
-			if (m_initialized == InitializationState.Uninitialized) {
+			if (Initialized == InitializationState.Uninitialized) {
 				ContextRenderingApi = EAGLRenderingAPI.OpenGLES2;
 				base.CreateFrameBuffer ();
 
@@ -192,7 +219,7 @@ namespace HelloRhino.Touch
         //       lower AA. We use 8x here for starters, but the simulators only
         //       support 4x. Since we're not sure how high certain devices may go, 8x is 
         //       probably as high as we want to go for performance and resource purposes.
-				m_msaaFBO = new RhGLFramebufferObject ((int)(Size.Width * ContentScaleFactor), (int)(Size.Height * ContentScaleFactor), 8, true, true);
+				MsaaFBO = new RhGLFramebufferObject ((int)(Size.Width * ContentScaleFactor), (int)(Size.Height * ContentScaleFactor), 8, true, true);
 
         // If the MSAA FBO is invalid, or the samples used is 0, then it means we
         // don't really have a MSAA FBO, so just nullify it.
@@ -204,10 +231,10 @@ namespace HelloRhino.Touch
         //       FBO that uses 0 samples, then you really haven't created a MSAA FBO.
         // Note2: The above situation will most likely only occur on hardware that does 
         //        not support MSAA.
-        if (!m_msaaFBO.IsValid || (m_msaaFBO.ColorBuffer.SamplesUsed == 0))
+				if (!MsaaFBO.IsValid || (MsaaFBO.ColorBuffer.SamplesUsed == 0))
         {
-          m_msaaFBO.Destroy ();
-          m_msaaFBO = null;
+					MsaaFBO.Destroy ();
+					MsaaFBO = null;
         }
 
 				//CheckGLError ();
@@ -217,8 +244,8 @@ namespace HelloRhino.Touch
         // OpenTk creates an FBO by default for its main rendering target. We simply 
         // just create one of our FBOs from its handle...and the rest of the FBO gets
         // filled in by our implementation.
-        m_visibleFBO = new RhGLFramebufferObject( (uint)Framebuffer );
-				m_visibleFBO.DepthBuffer = new RhGLRenderBuffer ((int)(Size.Width * ContentScaleFactor), (int)(Size.Height * ContentScaleFactor), All.DepthComponent16, 0);
+        VisibleFBO = new RhGLFramebufferObject( (uint)Framebuffer );
+				VisibleFBO.DepthBuffer = new RhGLRenderBuffer ((int)(Size.Width * ContentScaleFactor), (int)(Size.Height * ContentScaleFactor), All.DepthComponent16, 0);
 
 				//CheckGLError ();
 
@@ -228,20 +255,20 @@ namespace HelloRhino.Touch
         //       then we'll need to create a depth buffer for the visible FBO always. For not, let's
         //       only do it if we failed to create a MSAA FBO because we assume that the MSAA FBO
         //       will always be the primary rendering target.
-        if (m_msaaFBO != null) 
+        if (MsaaFBO != null) 
         {
-          m_activeFBO = m_msaaFBO;
+          ActiveFBO = MsaaFBO;
         } 
         else 
         {
-          m_activeFBO = m_visibleFBO;
+          ActiveFBO = VisibleFBO;
         }
 
 				m_frameBufferWidth = (int)(Size.Width * ContentScaleFactor);
 				m_frameBufferHeight = (int)(Size.Height * ContentScaleFactor);
 
 				MakeCurrent ();
-				m_initialized = InitializationState.Initialized;
+				Initialized = InitializationState.Initialized;
 
 				GL.Viewport (0, 0, m_frameBufferWidth, m_frameBufferHeight);
 
@@ -257,7 +284,7 @@ namespace HelloRhino.Touch
 
 				//CheckGLError ();
 			}
-			return m_initialized;
+			return Initialized;
 		}
 
 		/// <summary>
@@ -277,28 +304,28 @@ namespace HelloRhino.Touch
 			if(InitializeOpenGL() == InitializationState.Initialized) {
 				MakeCurrent ();
 
-				m_renderer.Frame = Frame;
+				Renderer.Frame = Frame;
 
-				if (m_viewport == null && App.Manager.CurrentModel.IsReadyForRendering)
+				if (Viewport == null && App.Manager.CurrentModel.IsReadyForRendering)
 					SetupViewport ();
 
 				if (!App.Manager.FastDrawing)
-					m_activeFBO = m_msaaFBO;
+					ActiveFBO = MsaaFBO;
 				else
-					m_activeFBO = m_visibleFBO;
+					ActiveFBO = VisibleFBO;
 
         // enable our active FBO...
-        m_activeFBO.Enable ();
+        ActiveFBO.Enable ();
 
 				if (m_inAnimatedRestoreView)
 					AnimateRestoreView ();
 
 				// render the model...
-				m_renderer.RenderModel (App.Manager.CurrentModel, m_viewport);
+				Renderer.RenderModel (App.Manager.CurrentModel, Viewport);
 
         // copy our active FBO into our visible FBO...
         // Note: if the active and visible FBO are one in the same, then this results in a NOP.
-				m_activeFBO.CopyTo (m_visibleFBO);
+				ActiveFBO.CopyTo (VisibleFBO);
 
 				SwapBuffers ();
 			}
@@ -312,7 +339,7 @@ namespace HelloRhino.Touch
 			if (App.Manager.CurrentModel == null)
 				return;
 
-			m_viewport = new ViewportInfo ();
+			Viewport = new ViewportInfo ();
 
 			bool viewInitialized = false;
 			int viewCount = App.Manager.CurrentModel.ModelFile.Views.Count;
@@ -322,8 +349,8 @@ namespace HelloRhino.Touch
 				foreach (var view in App.Manager.CurrentModel.ModelFile.Views) {
 					if (view.Viewport.IsPerspectiveProjection) {
 						viewInitialized = true;
-						m_viewport = view.Viewport;
-						m_viewport.TargetPoint = view.Viewport.TargetPoint;
+						Viewport = view.Viewport;
+						Viewport.TargetPoint = view.Viewport.TargetPoint;
 						break;
 					}
 				}
@@ -331,40 +358,40 @@ namespace HelloRhino.Touch
 
 			// If there isn't one, then cook up a viewport from scratch...
 			if (!viewInitialized) {
-				m_viewport.SetScreenPort (0, m_frameBufferWidth, 0, m_frameBufferHeight, 1, 1000);
-				m_viewport.TargetPoint = new Rhino.Geometry.Point3d (0, 0, 0);
+				Viewport.SetScreenPort (0, m_frameBufferWidth, 0, m_frameBufferHeight, 1, 1000);
+				Viewport.TargetPoint = new Rhino.Geometry.Point3d (0, 0, 0);
 				var plane = new Rhino.Geometry.Plane (Rhino.Geometry.Point3d.Origin, new Rhino.Geometry.Vector3d (-1, -1, -1));
-				m_viewport.SetCameraLocation(new Rhino.Geometry.Point3d (10, 10, 10));
+				Viewport.SetCameraLocation(new Rhino.Geometry.Point3d (10, 10, 10));
 				var dir = new Rhino.Geometry.Vector3d (-1, -1, -1);
 				dir.Unitize ();
-				m_viewport.SetCameraDirection (dir);
-				m_viewport.SetCameraUp (plane.YAxis);
-				m_viewport.SetFrustum (-1, 1, -1, 1, 0.1, 1000);
-				m_viewport.FrustumAspect = m_viewport.ScreenPortAspect;
-				m_viewport.IsPerspectiveProjection = true;
-				m_viewport.Camera35mmLensLength = 50;
+				Viewport.SetCameraDirection (dir);
+				Viewport.SetCameraUp (plane.YAxis);
+				Viewport.SetFrustum (-1, 1, -1, 1, 0.1, 1000);
+				Viewport.FrustumAspect = Viewport.ScreenPortAspect;
+				Viewport.IsPerspectiveProjection = true;
+				Viewport.Camera35mmLensLength = 50;
 				if (App.Manager.CurrentModel != null) {
 					if (App.Manager.CurrentModel.AllMeshes != null)
-						m_viewport.DollyExtents (App.Manager.CurrentModel.AllMeshes, 1.0);
+						Viewport.DollyExtents (App.Manager.CurrentModel.AllMeshes, 1.0);
 				}
 			}
 
 			// Fix up viewport values
-			var cameraDir = m_viewport.CameraDirection;
+			var cameraDir = Viewport.CameraDirection;
 			cameraDir.Unitize ();
-			m_viewport.SetCameraDirection (cameraDir);
+			Viewport.SetCameraDirection (cameraDir);
 
-			var cameraUp = m_viewport.CameraUp;
+			var cameraUp = Viewport.CameraUp;
 			cameraUp.Unitize ();
-			m_viewport.SetCameraUp (cameraUp);
+			Viewport.SetCameraUp (cameraUp);
 
 			ResizeViewport ();
 
-			m_renderer.Viewport = m_viewport;
+			Renderer.Viewport = Viewport;
 
 			// save initial viewport settings for restoreView
-			m_initialPosition = new ViewportInfo (m_viewport);
-			m_lastPosition = new ViewportInfo (m_viewport);
+			InitialPosition = new ViewportInfo (Viewport);
+			LastPosition = new ViewportInfo (Viewport);
 			m_atInitialPosition = true;
 		}
 
@@ -384,17 +411,17 @@ namespace HelloRhino.Touch
 		/// </summary>
 		protected void ResizeViewport ()
 		{
-			if (m_viewport == null)
+			if (Viewport == null)
 				return;
 
 			var newRectangle = Bounds;
-			m_viewport.SetScreenPort (0, (int)(newRectangle.Width - 1), 0, (int)(newRectangle.Height - 1), 0, 0);
+			Viewport.SetScreenPort (0, (int)(newRectangle.Width - 1), 0, (int)(newRectangle.Height - 1), 0, 0);
 
 			double newPortAspect = (newRectangle.Size.Width / newRectangle.Size.Height);
-			m_viewport.FrustumAspect = newPortAspect;
+			Viewport.FrustumAspect = newPortAspect;
 
 			if (App.Manager.CurrentModel != null)
-				SetFrustum (m_viewport, App.Manager.CurrentModel.BBox);
+				SetFrustum (Viewport, App.Manager.CurrentModel.BBox);
 		}
 	
 		/// <summary>
@@ -403,13 +430,13 @@ namespace HelloRhino.Touch
 		public override void LayoutSubviews ()
 		{
 			base.LayoutSubviews ();
-			if (m_initialized == InitializationState.Initialized) {
+			if (Initialized == InitializationState.Initialized) {
 
 				ResizeViewport ();
 			
 				MakeCurrent ();
 
-				m_renderer.Resize ();
+				Renderer.Resize ();
 
 				DrawFrameBuffer ();
 			}
@@ -458,14 +485,14 @@ namespace HelloRhino.Touch
 				}
 
 				// Destroy all the buffers
-        if (m_msaaFBO != null) {
-          m_msaaFBO.Handle = Globals.UNSET_HANDLE;
-          m_msaaFBO = null;
+        if (MsaaFBO != null) {
+          MsaaFBO.Handle = Globals.UNSET_HANDLE;
+          MsaaFBO = null;
         }
 
-        if (m_visibleFBO != null) {
-          m_visibleFBO.Handle = Globals.UNSET_HANDLE;
-          m_visibleFBO = null;
+        if (VisibleFBO != null) {
+          VisibleFBO.Handle = Globals.UNSET_HANDLE;
+          VisibleFBO = null;
         }
 			}
 			base.DestroyFrameBuffer ();
@@ -520,7 +547,7 @@ namespace HelloRhino.Touch
 		[Export("ZoomExtentsWithGesture")]
 		private void ZoomExtentsWithGesture (UIGestureRecognizer gesture)
 		{
-			if (m_viewport == null)
+			if (Viewport == null)
 				return;
 
 			if (gesture.State == UIGestureRecognizerState.Ended) {
@@ -532,11 +559,11 @@ namespace HelloRhino.Touch
 
 				if (m_startRestoreAtInitialPosition) {
 					// animate from current position (which is initial position) back to last position
-					targetPosition = m_lastPosition;
+					targetPosition = LastPosition;
 				} else {
 					// animate from current position to initial position
-					targetPosition = m_initialPosition;
-					m_lastPosition = new ViewportInfo(m_viewport);
+					targetPosition = InitialPosition;
+					LastPosition = new ViewportInfo(Viewport);
 				}
 			
 				StartRestoreViewTo (targetPosition);
@@ -549,7 +576,7 @@ namespace HelloRhino.Touch
 		[Export("ZoomCameraWithGesture")]
 		private void ZoomCameraWithGesture (UIPinchGestureRecognizer gesture)
 		{
-			if (m_viewport == null)
+			if (Viewport == null)
 				return;
 
 			if (gesture.State == UIGestureRecognizerState.Began) {
@@ -561,7 +588,7 @@ namespace HelloRhino.Touch
 				if (gesture.NumberOfTouches > 1) {
 					App.Manager.FastDrawing = true;
 					System.Drawing.PointF zoomPoint = OrbitDollyRecognizer.MidpointLocation;
-					m_viewport.Magnify (Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint); 
+					Viewport.Magnify (Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint); 
 					gesture.Scale = 1.0f;
 				}
 
@@ -584,7 +611,7 @@ namespace HelloRhino.Touch
 		[Export("OrbitDollyCameraWithGesture")]
 		private void OrbitDollyCameraWithGesture (OrbitDollyGestureRecognizer gesture)
 		{
-			if (m_viewport == null)
+			if (Viewport == null)
 				return;
 
 			if (gesture.State == UIGestureRecognizerState.Began) {
@@ -598,12 +625,12 @@ namespace HelloRhino.Touch
 				App.Manager.FastDrawing = true;
 
 				if (gesture.HasSingleTouch) {
-					m_viewport.GestureOrbit (Bounds.Size.ToSize(), gesture.AnchorLocation, gesture.CurrentLocation);
+					Viewport.GestureOrbit (Bounds.Size.ToSize(), gesture.AnchorLocation, gesture.CurrentLocation);
 					gesture.AnchorLocation = gesture.CurrentLocation;
 				}
 
 				if (gesture.HasTwoTouches) {
-					m_viewport.LateralPan (gesture.StartLocation, gesture.MidpointLocation);
+					Viewport.LateralPan (gesture.StartLocation, gesture.MidpointLocation);
 					gesture.StartLocation = gesture.MidpointLocation;
 				}
 
@@ -629,21 +656,21 @@ namespace HelloRhino.Touch
 		/// </summary>
 		private void StartRestoreViewTo (Rhino.DocObjects.ViewportInfo targetPosition)
 		{
-			if (m_viewport == null)
+			if (Viewport == null)
 				return;
 
 			m_inAnimatedRestoreView = true;
 			App.Manager.FastDrawing = true;
 
 			UserInteractionEnabled = false;
-			m_restoreViewStartTime = DateTime.Now;
-			m_restoreViewTotalTime = new TimeSpan (0, 0, 0, 0, 500);
+			RestoreViewStartTime = DateTime.Now;
+			RestoreViewTotalTime = new TimeSpan (0, 0, 0, 0, 500);
 
-			m_restoreViewStartViewport = new ViewportInfo(m_viewport); // start from current position
-			m_restoreViewFinishViewport = new ViewportInfo(targetPosition); // end on the target position
+			RestoreViewStartViewport = new ViewportInfo(Viewport); // start from current position
+			RestoreViewFinishViewport = new ViewportInfo(targetPosition); // end on the target position
 
 			// fix frustum aspect to match current screen aspect
-			m_restoreViewFinishViewport.FrustumAspect = m_viewport.FrustumAspect;
+			RestoreViewFinishViewport.FrustumAspect = Viewport.FrustumAspect;
 		}
 
 		/// <summary>
@@ -654,10 +681,10 @@ namespace HelloRhino.Touch
 			var restoreViewCurrentTime = DateTime.Now;																				
 
 			var currentTime = restoreViewCurrentTime;																						
-			var startTime = m_restoreViewStartTime;																							
+			var startTime = RestoreViewStartTime;																							
 			var timeElapsed = currentTime.Subtract (startTime);																	
 			var timeElapsedInMs = timeElapsed.TotalMilliseconds;																
-			var totalTimeOfAnimationInMs = m_restoreViewTotalTime.TotalMilliseconds;						
+			var totalTimeOfAnimationInMs = RestoreViewTotalTime.TotalMilliseconds;						
 			double percentCompleted = timeElapsedInMs / totalTimeOfAnimationInMs;
 
 			if (percentCompleted > 1) {
@@ -669,18 +696,18 @@ namespace HelloRhino.Touch
 			}
 
 			// Get some data from the starting view
-			Rhino.Geometry.Point3d sourceTarget = m_restoreViewStartViewport.TargetPoint;
-			Rhino.Geometry.Point3d sourceCamera = m_restoreViewStartViewport.CameraLocation;
+			Rhino.Geometry.Point3d sourceTarget = RestoreViewStartViewport.TargetPoint;
+			Rhino.Geometry.Point3d sourceCamera = RestoreViewStartViewport.CameraLocation;
 			double sourceDistance = sourceCamera.DistanceTo (sourceTarget);
-			Rhino.Geometry.Vector3d sourceUp = m_restoreViewStartViewport.CameraUp;
+			Rhino.Geometry.Vector3d sourceUp = RestoreViewStartViewport.CameraUp;
 			sourceUp.Unitize ();
 
 			// Get some data from the ending view
-			Rhino.Geometry.Point3d targetTarget = m_restoreViewFinishViewport.TargetPoint;
-			Rhino.Geometry.Point3d targetCamera = m_restoreViewFinishViewport.CameraLocation;
+			Rhino.Geometry.Point3d targetTarget = RestoreViewFinishViewport.TargetPoint;
+			Rhino.Geometry.Point3d targetCamera = RestoreViewFinishViewport.CameraLocation;
 			double targetDistance = targetCamera.DistanceTo (targetTarget);
 			Rhino.Geometry.Vector3d targetCameraDir = targetCamera - targetTarget;
-			Rhino.Geometry.Vector3d targetUp = m_restoreViewFinishViewport.CameraUp;
+			Rhino.Geometry.Vector3d targetUp = RestoreViewFinishViewport.CameraUp;
 			targetUp.Unitize ();
 
 			// Adjust the target camera location so that the starting camera to target distance
@@ -713,12 +740,12 @@ namespace HelloRhino.Touch
 
 			if (percentCompleted >= 1) {
 				// put the last redraw at the exact end point to eliminate any rounding errors
-				m_viewport.SetTarget (m_restoreViewFinishViewport.TargetPoint, m_restoreViewFinishViewport.CameraLocation, m_restoreViewFinishViewport.CameraUp);
+				Viewport.SetTarget (RestoreViewFinishViewport.TargetPoint, RestoreViewFinishViewport.CameraLocation, RestoreViewFinishViewport.CameraUp);
 			} else {	
-				m_viewport.SetTarget (frameTarget, frameCamera, frameUp);
+				Viewport.SetTarget (frameTarget, frameCamera, frameUp);
 			}
 
-			SetFrustum (m_viewport, App.Manager.CurrentModel.BBox);
+			SetFrustum (Viewport, App.Manager.CurrentModel.BBox);
 
 			SetNeedsDisplay ();
 
@@ -754,7 +781,7 @@ namespace HelloRhino.Touch
 			CADisplayLink displayLink = UIScreen.MainScreen.CreateDisplayLink (this, new Selector ("drawFrame"));
 			displayLink.FrameInterval = m_frameInterval;
 			displayLink.AddToRunLoop (NSRunLoop.Current, NSRunLoop.NSDefaultRunLoopMode);
-			this.m_displayLink = displayLink;
+			this.DisplayLink = displayLink;
 
 			IsAnimating = true;
 		}
@@ -766,8 +793,8 @@ namespace HelloRhino.Touch
 		{
 			if (!IsAnimating)
 				return;
-			m_displayLink.Invalidate ();
-			m_displayLink = null;
+			DisplayLink.Invalidate ();
+			DisplayLink = null;
 			DestroyFrameBuffer ();
 			IsAnimating = false;
 		}
