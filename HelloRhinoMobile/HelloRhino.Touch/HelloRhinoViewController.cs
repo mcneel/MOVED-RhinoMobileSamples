@@ -31,11 +31,14 @@ using System.Drawing;
 namespace HelloRhino.Touch
 {
 	[Register ("HelloRhinoViewController")]
-	public partial class HelloRhinoViewController : GLKViewController, IDisposable
+	public partial class HelloRhinoViewController : UIViewController, IDisposable
 	{
 		#region properties
 		/// <value> This the EAGLContext controlled by the GLKViewController. </value>
 		protected EAGLContext Context { get; set; }
+
+		/// <value> Returns the View cast as a GLKView </value>
+		new GLKView View { get  { return (GLKView)base.View; }  }
 
 		/// <value> The renderer associated with this view. </value>
 		public ES2Renderer Renderer { get; private set; }
@@ -70,24 +73,29 @@ namespace HelloRhino.Touch
 		/// <value> The total time of the restore view action. </value>
 		protected TimeSpan RestoreViewTotalTime { get; set; }
 
-		/// <value> IsAnimating is true if the view is currently changing. </value>
-		public bool IsAnimating { get; private set; }
-
 		/// <value> True if the Camera is at the default, initial camera position. </value>
 		public bool CameraIsAtInitialPosition { get; private set; }
 
 		/// <value> True if the Camera should start the restore to initial position. </value>
 		public bool ShouldStartRestoreToInitialPosition { get; private set; }
 
+		/// <value> The AnimationTimer for creating temporary animation loops. </value>
+		private NSTimer AnimationTimer { get; set; }
+
 		/// <value> True if the Camera is currently being animated back to the last position. </value>
 		public bool IsInAnimatedRestoreView { get; private set; }
 
 		/// <value> Determines which mode we are in, fast or high-quality drawing. </value>
-		private bool FastDrawing { get; set; }
+		private bool m_fastDrawing;
+		private bool FastDrawing { 
+			get { return m_fastDrawing; }
 
-		/// <value> Set to true to trigger redraw. </value>
-		private bool NeedsRedraw { get; set; }
-
+			set {
+				m_fastDrawing = value;
+				View.DrawableMultisample = m_fastDrawing ? GLKViewDrawableMultisample.None : GLKViewDrawableMultisample.Sample4x;
+			}
+		}
+			
 		/// <value> True is an iPhone or iPodTouch, False if it's an iPad. </value>
 		private static bool UserInterfaceIdiomIsPhone {
 			get { return UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone; }
@@ -133,8 +141,9 @@ namespace HelloRhino.Touch
 		#endregion
 
 		#region constructors and disposal
-		public HelloRhinoViewController (IntPtr handle) : base (handle)
+		public HelloRhinoViewController () : base (UserInterfaceIdiomIsPhone ? "HelloRhinoViewController_iPhone" : "HelloRhinoViewController_iPad", null)
 		{
+
 		}
 
 		/// <summary>
@@ -175,6 +184,8 @@ namespace HelloRhino.Touch
 
 				TearDownGL ();
 
+				View.Dispose ();
+
 				if (EAGLContext.CurrentContext == Context)
 					EAGLContext.SetCurrentContext (null);
 
@@ -202,7 +213,7 @@ namespace HelloRhino.Touch
 		}
 		#endregion
 
-		#region View lifecycle methods
+		#region View Lifecycle methods
 		/// <summary>
 		/// ViewDidLoad is called by CocoaTouch when the view had loaded.
 		/// </summary>
@@ -234,11 +245,6 @@ namespace HelloRhino.Touch
 
 			// Tell the model to prepare itself for display...
 			App.Manager.CurrentModel.Prepare ();
-
-			NeedsRedraw = true;
-			FastDrawing = true;
-			Draw (this, null);
-			RedrawDetailed ();
 		}
 
 		/// <summary>
@@ -249,14 +255,6 @@ namespace HelloRhino.Touch
 			base.ViewWillDisappear (animated);
 
 			App.Manager.CurrentModel.MeshPrep -= ObserveMeshPrep;
-		}
-
-		public override void ViewWillLayoutSubviews ()
-		{
-			base.ViewWillLayoutSubviews ();
-
-			NeedsRedraw = true;
-			FastDrawing = true;
 		}
 		#endregion
 
@@ -281,10 +279,9 @@ namespace HelloRhino.Touch
 			bool toOrientationIsLandscape = (toInterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || toInterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
 
 			if (!(currentOrientationIsLandscape && toOrientationIsLandscape)) {
-				ResizeCamera ();
 				FastDrawing = true;
-				NeedsRedraw = true;
-				Draw (this, null);
+				ResizeCamera ();
+				View.SetNeedsDisplay ();
 			}
 
 		}
@@ -298,120 +295,8 @@ namespace HelloRhino.Touch
 			bool toOrientationIsLandscape = (fromInterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || fromInterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
 
 			if (!(currentOrientationIsLandscape && toOrientationIsLandscape)) {
-				FastDrawing = false;
-				NeedsRedraw = true;
+				RedrawDetailed ();
 			}
-		}
-		#endregion
-
-		#region OpenGL Setup, TearDown and Utils
-		/// <summary>
-		/// Sets up and initializes OpenGL ES
-		/// </summary>
-		void SetupGL()
-		{
-			// Setup the Rendering Context...
-			Context = new EAGLContext (EAGLRenderingAPI.OpenGLES2);
-			if (Context == null)
-				Console.WriteLine ("Failed to create ES context");
-
-			// Initialize the Renderer...
-			Renderer = new ES2Renderer ();
-
-			// Initialize the View...
-			GLKView view = (GLKView)View;
-			view.Context = Context;
-			view.DrawableDepthFormat = GLKViewDrawableDepthFormat.Format24;
-			view.DrawableMultisample = GLKViewDrawableMultisample.None; 
-			view.DrawInRect += Draw;
-
-			EAGLContext.SetCurrentContext (Context);
-
-			GL.ClearDepth (0.0f);
-			GL.DepthRange (0.0f, 1.0f);
-			GL.Enable (EnableCap.DepthTest);
-			GL.DepthFunc (DepthFunction.Equal);
-			GL.DepthMask (true);
-
-			GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-			GL.Disable (EnableCap.Dither);
-			GL.Disable (EnableCap.CullFace);
-
-			NeedsRedraw = true;
-		}
-
-		/// <summary>
-		/// Destroys all OpenGL ES resources associated with this view and the model being drawn.
-		/// </summary>
-		protected void TearDownGL ()
-		{
-			EAGLContext.SetCurrentContext (Context);
-
-			// Delete all the VBOs in the current model...
-			if (App.Manager.CurrentModel != null) {
-				if (App.Manager.CurrentModel.DisplayObjects != null) {
-					// Destroy all buffers on all meshes
-					foreach (var obj in App.Manager.CurrentModel.DisplayObjects) {
-						var mesh = obj as DisplayMesh;
-						if (mesh != null) {
-							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
-								uint vbo = mesh.VertexBufferHandle;
-								GL.DeleteBuffers (1, ref vbo);
-								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
-							}
-							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
-								uint ibo = mesh.IndexBufferHandle;
-								GL.DeleteBuffers (1, ref ibo);
-								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
-							}
-						}
-					}
-
-					// Destroy all buffers on all transparent meshes
-					foreach (var obj in App.Manager.CurrentModel.TransparentObjects) {
-						var mesh = obj as DisplayMesh;
-						if (mesh != null) {
-							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
-								uint vbo = mesh.VertexBufferHandle;
-								GL.DeleteBuffers (1, ref vbo);
-								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
-							}
-							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
-								uint ibo = mesh.IndexBufferHandle;
-								GL.DeleteBuffers (1, ref ibo);
-								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
-							}
-						}
-					}
-				}
-			}
-
-			Renderer.Dispose ();
-		}
-
-		/// <summary>
-		/// CaptureImage saves an image of the OpenGL view to the photo album.
-		/// </summary>
-		public bool CaptureImage()
-		{
-			bool didSaveImageToPhotoAlbum = false;
-		
-			if (View != null) {
-				GLKView view = (GLKView)View;
-
-				UIImage snapshot = view.Snapshot ();
-				snapshot.SaveToPhotosAlbum((img, err) => {
-					if(err != null) {
-						Console.WriteLine("error saving image: {0}", err);
-						didSaveImageToPhotoAlbum = false;
-					} else {
-						Console.WriteLine ("image saved to photo album");
-						didSaveImageToPhotoAlbum = true;
-					}
-				});
-			}
-
-			return didSaveImageToPhotoAlbum;
 		}
 		#endregion
 
@@ -419,7 +304,7 @@ namespace HelloRhino.Touch
 		/// <summary>
 		/// Initializes the camera on load...
 		/// </summary>
-		protected void SetupCamera ()
+		public void SetupCamera ()
 		{
 			if (Camera == null)
 				LoadCamera ();
@@ -492,11 +377,11 @@ namespace HelloRhino.Touch
 			}
 
 		}
-			
+
 		/// <summary>
 		/// Resizes the camera (to be called just before rotation as bounds width and height are swapped)
 		/// </summary>
-		protected void ResizeCamera ()
+		public void ResizeCamera ()
 		{
 			if (Camera == null)
 				return;
@@ -522,7 +407,6 @@ namespace HelloRhino.Touch
 			Renderer.Viewport = Camera;
 
 			GL.Viewport (0, 0, (int)newRectangle.Height, (int)newRectangle.Width);
-			NeedsRedraw = true;
 		}
 
 		/// <summary>
@@ -537,6 +421,123 @@ namespace HelloRhino.Touch
 		}
 		#endregion
 
+		#region OpenGL Setup, TearDown and Utils
+		/// <summary>
+		/// Sets up and initializes OpenGL ES
+		/// </summary>
+		void SetupGL()
+		{
+			// Setup the Rendering Context...
+			Context = new EAGLContext (EAGLRenderingAPI.OpenGLES2);
+			if (Context == null)
+				Console.WriteLine ("Failed to create ES context");
+
+			// Initialize the Renderer...
+			Renderer = new ES2Renderer ();
+
+			// Initialize the View...
+			View.Context = Context;
+			View.EnableSetNeedsDisplay = true;
+			View.ClearsContextBeforeDrawing = false;
+			View.DrawableDepthFormat = GLKViewDrawableDepthFormat.Format24;
+			View.DrawableMultisample = GLKViewDrawableMultisample.None;
+			View.DrawInRect += Draw;
+
+			EAGLContext.SetCurrentContext (Context);
+
+			GL.ClearDepth (0.0f);
+			GL.DepthRange (0.0f, 1.0f);
+			GL.Enable (EnableCap.DepthTest);
+			GL.DepthFunc (DepthFunction.Equal);
+			GL.DepthMask (true);
+
+			GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+			GL.Disable (EnableCap.Dither);
+			GL.Disable (EnableCap.CullFace);
+		}
+
+		/// <summary>
+		/// Destroys all OpenGL ES resources associated with this view and the model being drawn.
+		/// </summary>
+		protected void TearDownGL ()
+		{
+			EAGLContext.SetCurrentContext (Context);
+
+			// Delete all the VBOs in the current model...
+			if (App.Manager.CurrentModel != null) {
+				if (App.Manager.CurrentModel.DisplayObjects != null) {
+					// Destroy all buffers on all meshes
+					foreach (var obj in App.Manager.CurrentModel.DisplayObjects) {
+						var mesh = obj as DisplayMesh;
+						if (mesh != null) {
+							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
+								uint vbo = mesh.VertexBufferHandle;
+								GL.DeleteBuffers (1, ref vbo);
+								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
+							}
+							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
+								uint ibo = mesh.IndexBufferHandle;
+								GL.DeleteBuffers (1, ref ibo);
+								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
+							}
+						}
+					}
+
+					// Destroy all buffers on all transparent meshes
+					foreach (var obj in App.Manager.CurrentModel.TransparentObjects) {
+						var mesh = obj as DisplayMesh;
+						if (mesh != null) {
+							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
+								uint vbo = mesh.VertexBufferHandle;
+								GL.DeleteBuffers (1, ref vbo);
+								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
+							}
+							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
+								uint ibo = mesh.IndexBufferHandle;
+								GL.DeleteBuffers (1, ref ibo);
+								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
+							}
+						}
+					}
+				}
+			}
+
+			Renderer.Dispose ();
+		}
+
+		/// <summary>
+		/// CaptureImage saves an image of the OpenGL view to the photo album.
+		/// </summary>
+		public bool CaptureImage()
+		{
+			bool didSaveImageToPhotoAlbum = false;
+		
+			if (View != null) {
+			
+				UIImage snapshot = View.Snapshot ();
+				snapshot.SaveToPhotosAlbum((img, err) => {
+					if(err != null) {
+						Console.WriteLine("error saving image: {0}", err);
+						didSaveImageToPhotoAlbum = false;
+					} else {
+						Console.WriteLine ("image saved to photo album");
+						didSaveImageToPhotoAlbum = true;
+					}
+				});
+			}
+
+			return didSaveImageToPhotoAlbum;
+		}
+		#endregion
+
+		#region Draw
+		void Draw (object sender, GLKViewDrawEventArgs args)
+		{
+			Renderer.FastDrawing = true;
+			Renderer.RenderModel (App.Manager.CurrentModel, Camera);
+		}
+		#endregion
+
 		#region Model Initialization Events
 		private void ObserveMeshPrep (RMModel model, MeshPreparationProgress progress)
 		{
@@ -547,11 +548,8 @@ namespace HelloRhino.Touch
 					InitPrepView.Hidden = true;
 					SetupCamera ();
 					EnableAllGestureRecognizers ();
-					NeedsRedraw = true;
-					FastDrawing = true;
-					View.SetNeedsDisplay ();
-					RedrawDetailed();
 					App.Manager.CurrentModel.MeshPrep -= new MeshPreparationHandler (ObserveMeshPrep);
+					PerformSelector (new Selector ("RedrawDetailed"), null, 0.25);
 				});
 
 			}
@@ -585,41 +583,12 @@ namespace HelloRhino.Touch
 		}
 		#endregion
 
-		#region GLKView and GLKViewController delegate methods
-		public override void Update ()
-		{
-			// Turn off Multisampling for FastDrawing ...
-			GLKView view = (GLKView)View;
-			view.DrawableMultisample = FastDrawing ? GLKViewDrawableMultisample.None : GLKViewDrawableMultisample.Sample4x;
-		}
-			
-		void Draw (object sender, GLKViewDrawEventArgs args)
-		{
-			//If Needs update...
-			if (App.Manager.CurrentModel.IsReadyForRendering) {
-				if (NeedsRedraw) {
-
-					if (IsInAnimatedRestoreView)
-						AnimateRestoreView ();
-						
-					// Draw...
-					Renderer.FastDrawing = true;
-					Renderer.RenderModel (App.Manager.CurrentModel, Camera);
-
-					// Unless we are in AnimatedRestoreView, we can stop updating on the draw loop
-					if (!IsInAnimatedRestoreView)
-						NeedsRedraw = false;
-				}
-			}
-		}
-		#endregion
-
 		#region Gesture Handling methods
 		/// <summary>
 		/// This view's owner (ModelView) receives the: ShouldRecognizeSimultaneouslyWithGestureRecognizer
 		/// callback for each of its delegates.  
 		/// </summary>
-		private void SetupGestureRecognizers ()
+		public void SetupGestureRecognizers ()
 		{
 			// Pinch - Zoom
 			ZoomRecognizer = new UIPinchGestureRecognizer (this, new Selector ("ZoomCameraWithGesture"));
@@ -643,13 +612,13 @@ namespace HelloRhino.Touch
 			View.AddGestureRecognizer (DoubleTapGestureRecognizer);
 		}
 
-		protected void EnableAllGestureRecognizers ()
+		public void EnableAllGestureRecognizers ()
 		{
 			foreach (UIGestureRecognizer recognizer in View.GestureRecognizers)
 				recognizer.Enabled = true;
 		}
 
-		protected void DisableAllGestureRecognizers ()
+		public void DisableAllGestureRecognizers ()
 		{
 			foreach (UIGestureRecognizer recognizer in View.GestureRecognizers)
 				recognizer.Enabled = false;
@@ -695,21 +664,18 @@ namespace HelloRhino.Touch
 			if (gesture.State == UIGestureRecognizerState.Changed) {
 				if (gesture.NumberOfTouches > 1) {
 					FastDrawing = true;
-					System.Drawing.PointF zoomPoint = OrbitDollyRecognizer.MidpointLocation;
+					PointF zoomPoint = OrbitDollyRecognizer.MidpointLocation;
 					Camera.Magnify (View.Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint); 
 					gesture.Scale = 1.0f;
 				}
-
-				NeedsRedraw = true;
+					
 				View.SetNeedsDisplay ();
 			}
 
 			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
 				if (gesture.NumberOfTouches == 0) {
-					FastDrawing = false;
+					RedrawDetailed ();
 				}
-
-				NeedsRedraw = true;
 			}
 		}
 
@@ -735,16 +701,14 @@ namespace HelloRhino.Touch
 					Camera.LateralPan (gesture.StartLocation, gesture.MidpointLocation);
 					gesture.StartLocation = gesture.MidpointLocation;
 				}
-
-				NeedsRedraw = true;
+					
 				View.SetNeedsDisplay ();
 			}
 
 			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
-				if (gesture.NumberOfTouches == 0)
-					FastDrawing = false;
-
-				NeedsRedraw = true;
+				if (gesture.NumberOfTouches == 0) {
+					RedrawDetailed ();
+				}
 			}
 
 		}
@@ -761,8 +725,6 @@ namespace HelloRhino.Touch
 				return;
 
 			IsInAnimatedRestoreView = true;
-			FastDrawing = true;
-			NeedsRedraw = true;
 
 			View.UserInteractionEnabled = false;
 			RestoreViewStartTime = DateTime.Now;
@@ -773,11 +735,15 @@ namespace HelloRhino.Touch
 
 			// fix frustum aspect to match current screen aspect
 			RestoreViewFinishViewport.FrustumAspect = Camera.FrustumAspect;
+
+			AnimationTimer = NSTimer.CreateScheduledTimer (0.03, this, new Selector ("AnimateRestoreView"), null, true);
+			AnimationTimer.Fire ();
 		}
 
 		/// <summary>
-		/// Tween from original view to 
+		/// Tween from original view
 		/// </summary>
+		[Export ("AnimateRestoreView")]
 		private void AnimateRestoreView ()
 		{
 			FastDrawing = true;
@@ -796,6 +762,7 @@ namespace HelloRhino.Touch
 				IsInAnimatedRestoreView = false;
 				View.UserInteractionEnabled = true;
 				CameraIsAtInitialPosition = !ShouldStartRestoreToInitialPosition;
+				AnimationTimer.Invalidate ();
 			}
 
 			// Get some data from the starting view
@@ -850,7 +817,7 @@ namespace HelloRhino.Touch
 
 			SetFrustum (Camera, App.Manager.CurrentModel.BBox);
 
-			NeedsRedraw = true;
+			View.SetNeedsDisplay ();
 
 			if (!IsInAnimatedRestoreView) {
 				// FastDrawing is still enabled and we just scheduled a draw of the model at the final location.
@@ -865,10 +832,10 @@ namespace HelloRhino.Touch
 		/// Redraw the final frame of an animation in "slow drawing" mode
 		/// </summary>
 		[Export("RedrawDetailed")]
-		private void RedrawDetailed ()
+		public void RedrawDetailed ()
 		{
 			FastDrawing = false;
-			NeedsRedraw = true;
+			View.SetNeedsDisplay ();
 		}
 		#endregion
 

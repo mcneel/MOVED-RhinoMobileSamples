@@ -163,7 +163,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <InterfaceDefinition Include="HelloRhino_iPhone.storyboard" />
-    <InterfaceDefinition Include="HelloRhino_iPad.storyboard" />
+    <InterfaceDefinition Include="HelloRhinoViewController_iPhone.xib" />
+    <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />
   </ItemGroup>
 </Project>
