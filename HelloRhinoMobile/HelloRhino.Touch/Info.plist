@@ -40,5 +40,9 @@
 	<string>UIStatusBarStyleBlackOpaque</string>
 	<key>CFBundleDisplayName</key>
 	<string>HelloRhino</string>
+	<key>UIMainStoryboardFile</key>
+	<string>HelloRhino_iPhone</string>
+	<key>UIMainStoryboardFile~ipad</key>
+	<string>HelloRhino_iPad</string>
 </dict>
 </plist>

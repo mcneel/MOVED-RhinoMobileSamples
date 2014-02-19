@@ -24,9 +24,8 @@ namespace HelloRhino.Touch
 	[Register ("AppDelegate")]
 	public partial class AppDelegate : UIApplicationDelegate
 	{
-		#region members
-		UIWindow m_window;
-		HelloRhinoViewController m_viewController;
+		#region properties
+		public override UIWindow Window { get; set; }
 		#endregion
 
 		#region methods
@@ -35,18 +34,7 @@ namespace HelloRhino.Touch
 		/// </summary>
 		public override bool FinishedLaunching (UIApplication application, NSDictionary launchOptions)
 		{
-			// create a new window instance based on the screen size
-			m_window = new UIWindow (UIScreen.MainScreen.Bounds);
-
-			// Create and setup an App Manager
 			App.Manager.Setup ();
-
-			// load the appropriate UI, depending on whether the app is running on an iPhone or iPad
-			m_viewController = new HelloRhinoViewController ();
-			m_window.RootViewController = m_viewController;
-
-			// make the window visible
-			m_window.MakeKeyAndVisible ();
 
 			return true;
 		}

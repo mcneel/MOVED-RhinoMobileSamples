@@ -48,21 +48,6 @@ namespace HelloRhino.Touch
 		public RMModel CurrentModel { get; set; }
 
 		/// <summary>
-		/// Fast Drawing is the quick PerVertex lighting drawing model without anti-aliasing
-		/// </summary>
-		public bool FastDrawing { get; set; }
-
-		/// <summary>
-		/// Enables and disables per-vertex lighting
-		/// </summary>
-		public bool UsePerVertexLighting { get; set; }
-
-		/// <summary>
-		/// Enables and disables anti-aliasing
-		/// </summary>
-		public bool UseAntiAliasing { get; set; }
-
-		/// <summary>
 		/// Manager creates a threadsafe singleton of App
 		/// </summary>
 		public static App Manager
@@ -84,8 +69,7 @@ namespace HelloRhino.Touch
 		#region constructors
 		private App() 
 		{ 
-			UsePerVertexLighting = true;
-			UseAntiAliasing = true;
+
 		}
 		#endregion
 

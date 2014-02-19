@@ -120,15 +120,10 @@
     <Compile Include="AppDelegate.cs" />
     <Compile Include="OrbitDollyGestureRecognizer.cs" />
     <Compile Include="HelloRhinoViewController.cs" />
+    <Compile Include="App.cs" />
     <Compile Include="HelloRhinoViewController.designer.cs">
       <DependentUpon>HelloRhinoViewController.cs</DependentUpon>
     </Compile>
-    <Compile Include="HelloRhinoView.cs" />
-    <Compile Include="App.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />
-    <InterfaceDefinition Include="HelloRhinoViewController_iPhone.xib" />
   </ItemGroup>
   <ItemGroup>
     <BundleResource Include="Resources\Models\Rhino Logo.3dm" />
@@ -166,5 +161,9 @@
       <Project>{022F5A8C-7A17-46D0-BCAD-EBB83305B20C}</Project>
       <Name>RhinoMobile.Touch</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <InterfaceDefinition Include="HelloRhino_iPhone.storyboard" />
+    <InterfaceDefinition Include="HelloRhino_iPad.storyboard" />
   </ItemGroup>
 </Project>

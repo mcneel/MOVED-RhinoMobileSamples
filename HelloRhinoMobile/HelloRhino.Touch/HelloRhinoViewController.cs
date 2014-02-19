@@ -12,30 +12,84 @@
 // MERCHANTABILITY ARE HEREBY DISCLAIMED.
 //
 using System;
+using System.Timers;
 
 using MonoTouch.Foundation;
 using MonoTouch.UIKit;
+using MonoTouch.GLKit;
+using MonoTouch.OpenGLES;
 
-using RhinoMobile;
 using RhinoMobile.Model;
+using RhinoMobile.Display;
+using Rhino.DocObjects;
+using OpenTK.Graphics.ES20;
+using MonoTouch.ObjCRuntime;
+using MonoTouch.CoreAnimation;
+using System.Drawing;
+
 
 namespace HelloRhino.Touch
 {
 	[Register ("HelloRhinoViewController")]
-	public partial class HelloRhinoViewController : UIViewController, IDisposable
+	public partial class HelloRhinoViewController : GLKViewController, IDisposable
 	{
 		#region properties
-		/// <value> The backing HelloRhinoView associated with this Controller. </value>
-		new HelloRhinoView View 
-		{ 
-			get 
-			{ 
-				return (HelloRhinoView)base.View; 
-			} 
-		}
+		/// <value> This the EAGLContext controlled by the GLKViewController. </value>
+		protected EAGLContext Context { get; set; }
+
+		/// <value> The renderer associated with this view. </value>
+		public ES2Renderer Renderer { get; private set; }
+
+		/// <value> The ViewportInfo for this view </value>
+		protected ViewportInfo Camera { get; set; }
+
+		/// <value> OrbitDollyGestureRecognizer listens for single and two-finger pan-like events. </value>
+		protected OrbitDollyGestureRecognizer OrbitDollyRecognizer { get; private set; }
+
+		/// <value> ZoomRecognizer listens for pinch gestures </value>
+		protected UIPinchGestureRecognizer ZoomRecognizer { get; private set; }
+
+		/// <value> The double-tap gesture recognizer listens for double-taps. </value>
+		protected UITapGestureRecognizer DoubleTapGestureRecognizer { get; private set; }
+
+		/// <value> The initial starting view position. </value>
+		protected ViewportInfo InitialPosition { get; set; }
+
+		/// <value> The last position of the Viewport before any other change. </value>
+		protected ViewportInfo LastPosition { get; set; }
+
+		/// <value> The Viewport to restore from - for tweening. </value>
+		protected ViewportInfo RestoreViewStartViewport { get; set; }
+
+		/// <value> The Viewport to restore to - for tweening </value>
+		protected ViewportInfo RestoreViewFinishViewport { get; set; }
+
+		/// <value> The startTime of the restore view action. </value>
+		protected DateTime RestoreViewStartTime { get; set; }
+
+		/// <value> The total time of the restore view action. </value>
+		protected TimeSpan RestoreViewTotalTime { get; set; }
+
+		/// <value> IsAnimating is true if the view is currently changing. </value>
+		public bool IsAnimating { get; private set; }
+
+		/// <value> True if the Camera is at the default, initial camera position. </value>
+		public bool CameraIsAtInitialPosition { get; private set; }
+
+		/// <value> True if the Camera should start the restore to initial position. </value>
+		public bool ShouldStartRestoreToInitialPosition { get; private set; }
+
+		/// <value> True if the Camera is currently being animated back to the last position. </value>
+		public bool IsInAnimatedRestoreView { get; private set; }
+
+		/// <value> Determines which mode we are in, fast or high-quality drawing. </value>
+		private bool FastDrawing { get; set; }
+
+		/// <value> Set to true to trigger redraw. </value>
+		private bool NeedsRedraw { get; set; }
 
 		/// <value> True is an iPhone or iPodTouch, False if it's an iPad. </value>
-		static bool UserInterfaceIdiomIsPhone {
+		private static bool UserInterfaceIdiomIsPhone {
 			get { return UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone; }
 		}
 		#endregion
@@ -55,7 +109,7 @@ namespace HelloRhino.Touch
 			/// <summary>
 			/// ShouldReceiveTouch is required for the UIGestureRecognizer protocol
 			/// </summary>
-			public override bool ShouldReceiveTouch(UIGestureRecognizer aRecogniser, UITouch aTouch)
+			public override bool ShouldReceiveTouch(UIGestureRecognizer recognizer, UITouch touch)
 			{
 				return true;
 			}
@@ -79,9 +133,8 @@ namespace HelloRhino.Touch
 		#endregion
 
 		#region constructors and disposal
-		public HelloRhinoViewController () : base (UserInterfaceIdiomIsPhone ? "HelloRhinoViewController_iPhone" : "HelloRhinoViewController_iPad", null)
+		public HelloRhinoViewController (IntPtr handle) : base (handle)
 		{
-
 		}
 
 		/// <summary>
@@ -120,11 +173,36 @@ namespace HelloRhino.Touch
 
 				ReleaseDesignerOutlets ();
 
+				TearDownGL ();
+
+				if (EAGLContext.CurrentContext == Context)
+					EAGLContext.SetCurrentContext (null);
+
+				NSNotificationCenter.DefaultCenter.RemoveObserver (this);
 			}	
+		}
+
+		public override void DidReceiveMemoryWarning ()
+		{
+			// Releases the view if it doesn't have a superview.
+			base.DidReceiveMemoryWarning ();
+
+			if (IsViewLoaded && View.Window == null) {
+				View.Dispose ();
+
+				TearDownGL ();
+
+				if (EAGLContext.CurrentContext == Context)
+					EAGLContext.SetCurrentContext (null);
+
+				Context.Dispose ();
+			}
+
+			// Release any cached data, images, etc that aren't in use.
 		}
 		#endregion
 
-		#region methods
+		#region View lifecycle methods
 		/// <summary>
 		/// ViewDidLoad is called by CocoaTouch when the view had loaded.
 		/// </summary>
@@ -132,38 +210,17 @@ namespace HelloRhino.Touch
 		{
 			base.ViewDidLoad ();
 
-			NSNotificationCenter.DefaultCenter.AddObserver (UIApplication.WillResignActiveNotification, a => {
-				if (IsViewLoaded && View.Window != null)
-					View.StopAnimating ();
-			}, this);
-			NSNotificationCenter.DefaultCenter.AddObserver (UIApplication.DidBecomeActiveNotification, a => {
-				if (IsViewLoaded && View.Window != null)
-					View.StartAnimating ();
-			}, this);
-			NSNotificationCenter.DefaultCenter.AddObserver (UIApplication.WillTerminateNotification, a => {
-				if (IsViewLoaded && View.Window != null)
-					View.StopAnimating ();
-			}, this);
+			SetupGL ();
 
-			// setup the GestureRecognizer delegates (this is for handling simultaneous recognizers in shouldRecognize...)
-			View.ZoomRecognizer.Delegate = new GestureDelegate (this);
-			View.OrbitDollyRecognizer.Delegate = new GestureDelegate (this);
+			SetupGestureRecognizers ();
 
 			// Show the initialization view...
 			InitPrepView.Hidden = true;
 			WarningSymbol.Hidden = true;
 			ProgressBar.Progress = 0.0f;
-			// subscribe to mesh prep events in the model...
-			App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
-		}
 
-		/// <summary>
-		/// ViewWillAppear is called by CocoaTouch just before the view will appear.
-		/// </summary>
-		public override void ViewWillAppear (bool animated)
-		{
-			base.ViewWillAppear (animated);
-			View.StartAnimating ();
+			// Subscribe to mesh prep events in the model...
+			App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
 		}
 
 		/// <summary>
@@ -173,14 +230,15 @@ namespace HelloRhino.Touch
 		{
 			base.ViewDidAppear (animated);
 
-			if (App.Manager.CurrentModel != null) {
-				View.ViewDidAppear ();
-			}
-
 			InitPrepView.Hidden = false;
 
 			// Tell the model to prepare itself for display...
 			App.Manager.CurrentModel.Prepare ();
+
+			NeedsRedraw = true;
+			FastDrawing = true;
+			Draw (this, null);
+			RedrawDetailed ();
 		}
 
 		/// <summary>
@@ -189,41 +247,20 @@ namespace HelloRhino.Touch
 		public override void ViewWillDisappear (bool animated)
 		{
 			base.ViewWillDisappear (animated);
-			View.StopAnimating ();
+
 			App.Manager.CurrentModel.MeshPrep -= ObserveMeshPrep;
 		}
 
-		/// <summary>
-		/// CaptureImage saves and image to the photo album.
-		/// </summary>
-		void CaptureImage()
+		public override void ViewWillLayoutSubviews ()
 		{
-			UIImage image;
+			base.ViewWillLayoutSubviews ();
 
-			UIGraphics.BeginImageContext (View.Frame.Size);
-
-			//Use this to determine the OS version...
-			//UIDevice.CurrentDevice.SystemName
-
-			//pre-iOS 7 using layer to snapshot render an empty image when used with OpenGL
-			//View.Layer.RenderInContext (UIGraphics.GetCurrentContext ());
-
-			//new iOS 7 method to snapshot works with OpenGL
-			View.DrawViewHierarchy (View.Frame, true);
-
-			image = UIGraphics.GetImageFromCurrentImageContext ();
-			UIGraphics.EndImageContext ();
-
-			image.SaveToPhotosAlbum((img, err) => {
-				if(err != null)
-					Console.WriteLine("error saving image: {0}", err);
-				else
-					Console.WriteLine ("image saved to photo album");
-			});
+			NeedsRedraw = true;
+			FastDrawing = true;
 		}
 		#endregion
 
-		#region Device Orientation Changes
+		#region Device Rotation methods
 		/// <summary>
 		/// This view should autorotate to all interface orientations.
 		/// </summary>
@@ -231,17 +268,292 @@ namespace HelloRhino.Touch
 		{
 			return true;
 		}
-		#endregion 
+
+		/// <summary>
+		/// Called just before the View will rotate, giving us an opportunity to resize the view based on new bounds
+		/// </summary>
+		public override void WillRotate (UIInterfaceOrientation toInterfaceOrientation, double duration)
+		{
+			base.WillRotate (toInterfaceOrientation, duration);
+
+			// If it not coming from LandscapeLeft or Right and going to landscape left or right...
+			bool currentOrientationIsLandscape = (InterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || InterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
+			bool toOrientationIsLandscape = (toInterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || toInterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
+
+			if (!(currentOrientationIsLandscape && toOrientationIsLandscape)) {
+				ResizeCamera ();
+				FastDrawing = true;
+				NeedsRedraw = true;
+				Draw (this, null);
+			}
+
+		}
+
+		public override void DidRotate (UIInterfaceOrientation fromInterfaceOrientation)
+		{
+			base.DidRotate (fromInterfaceOrientation);
+
+			// If it not coming from LandscapeLeft or Right and going to landscape left or right...
+			bool currentOrientationIsLandscape = (InterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || InterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
+			bool toOrientationIsLandscape = (fromInterfaceOrientation == UIInterfaceOrientation.LandscapeLeft || fromInterfaceOrientation == UIInterfaceOrientation.LandscapeRight);
+
+			if (!(currentOrientationIsLandscape && toOrientationIsLandscape)) {
+				FastDrawing = false;
+				NeedsRedraw = true;
+			}
+		}
+		#endregion
+
+		#region OpenGL Setup, TearDown and Utils
+		/// <summary>
+		/// Sets up and initializes OpenGL ES
+		/// </summary>
+		void SetupGL()
+		{
+			// Setup the Rendering Context...
+			Context = new EAGLContext (EAGLRenderingAPI.OpenGLES2);
+			if (Context == null)
+				Console.WriteLine ("Failed to create ES context");
+
+			// Initialize the Renderer...
+			Renderer = new ES2Renderer ();
+
+			// Initialize the View...
+			GLKView view = (GLKView)View;
+			view.Context = Context;
+			view.DrawableDepthFormat = GLKViewDrawableDepthFormat.Format24;
+			view.DrawableMultisample = GLKViewDrawableMultisample.None; 
+			view.DrawInRect += Draw;
+
+			EAGLContext.SetCurrentContext (Context);
+
+			GL.ClearDepth (0.0f);
+			GL.DepthRange (0.0f, 1.0f);
+			GL.Enable (EnableCap.DepthTest);
+			GL.DepthFunc (DepthFunction.Equal);
+			GL.DepthMask (true);
+
+			GL.BlendFunc (BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
+			GL.Disable (EnableCap.Dither);
+			GL.Disable (EnableCap.CullFace);
+
+			NeedsRedraw = true;
+		}
+
+		/// <summary>
+		/// Destroys all OpenGL ES resources associated with this view and the model being drawn.
+		/// </summary>
+		protected void TearDownGL ()
+		{
+			EAGLContext.SetCurrentContext (Context);
+
+			// Delete all the VBOs in the current model...
+			if (App.Manager.CurrentModel != null) {
+				if (App.Manager.CurrentModel.DisplayObjects != null) {
+					// Destroy all buffers on all meshes
+					foreach (var obj in App.Manager.CurrentModel.DisplayObjects) {
+						var mesh = obj as DisplayMesh;
+						if (mesh != null) {
+							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
+								uint vbo = mesh.VertexBufferHandle;
+								GL.DeleteBuffers (1, ref vbo);
+								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
+							}
+							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
+								uint ibo = mesh.IndexBufferHandle;
+								GL.DeleteBuffers (1, ref ibo);
+								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
+							}
+						}
+					}
+
+					// Destroy all buffers on all transparent meshes
+					foreach (var obj in App.Manager.CurrentModel.TransparentObjects) {
+						var mesh = obj as DisplayMesh;
+						if (mesh != null) {
+							if (mesh.VertexBufferHandle != Globals.UNSET_HANDLE) {
+								uint vbo = mesh.VertexBufferHandle;
+								GL.DeleteBuffers (1, ref vbo);
+								mesh.VertexBufferHandle = Globals.UNSET_HANDLE;
+							}
+							if (mesh.IndexBufferHandle != Globals.UNSET_HANDLE) {
+								uint ibo = mesh.IndexBufferHandle;
+								GL.DeleteBuffers (1, ref ibo);
+								mesh.IndexBufferHandle = Globals.UNSET_HANDLE;
+							}
+						}
+					}
+				}
+			}
+
+			Renderer.Dispose ();
+		}
+
+		/// <summary>
+		/// CaptureImage saves an image of the OpenGL view to the photo album.
+		/// </summary>
+		public bool CaptureImage()
+		{
+			bool didSaveImageToPhotoAlbum = false;
+		
+			if (View != null) {
+				GLKView view = (GLKView)View;
+
+				UIImage snapshot = view.Snapshot ();
+				snapshot.SaveToPhotosAlbum((img, err) => {
+					if(err != null) {
+						Console.WriteLine("error saving image: {0}", err);
+						didSaveImageToPhotoAlbum = false;
+					} else {
+						Console.WriteLine ("image saved to photo album");
+						didSaveImageToPhotoAlbum = true;
+					}
+				});
+			}
+
+			return didSaveImageToPhotoAlbum;
+		}
+		#endregion
+
+		#region Camera Setup
+		/// <summary>
+		/// Initializes the camera on load...
+		/// </summary>
+		protected void SetupCamera ()
+		{
+			if (Camera == null)
+				LoadCamera ();
+
+			// Fix up viewport values
+			var cameraDir = Camera.CameraDirection;
+			cameraDir.Unitize ();
+			Camera.SetCameraDirection (cameraDir);
+
+			var cameraUp = Camera.CameraUp;
+			cameraUp.Unitize ();
+			Camera.SetCameraUp (cameraUp);
+
+			Renderer.Viewport = Camera;
+
+			// save initial viewport settings for restoreView
+			InitialPosition = new ViewportInfo (Camera);
+			LastPosition = new ViewportInfo (Camera);
+			CameraIsAtInitialPosition = true;
+
+			GL.Viewport (0, 0, (int)View.Bounds.Size.Width, (int)View.Bounds.Size.Height);
+		}
+
+		/// <summary>
+		/// Find the Perspective viewport in the 3dm file and sets up the default view.
+		/// </summary>
+		public void LoadCamera ()
+		{
+			if (App.Manager.CurrentModel == null)
+				return;
+
+			Camera = new ViewportInfo ();
+			bool cameraIsInitialized = false;
+
+			int viewCount = App.Manager.CurrentModel.ModelFile.Views.Count;
+
+			// find first perspective viewport projection in file
+			if (viewCount > 0) {
+				foreach (var view in App.Manager.CurrentModel.ModelFile.Views) {
+					if (view.Viewport.IsPerspectiveProjection) {
+						cameraIsInitialized = true;
+						Camera = view.Viewport;
+						Camera.TargetPoint = view.Viewport.TargetPoint;
+						Camera.SetScreenPort (0, (int)View.Bounds.Size.Width, 0, (int)View.Bounds.Size.Height, 1, 1000);
+						Camera.FrustumAspect = Camera.ScreenPortAspect;
+						Camera.SetFrustumNearFar (App.Manager.CurrentModel.BBox);
+						break;
+					}
+				}
+			}
+
+			// If there isn't one, then cook up a viewport from scratch...
+			if (!cameraIsInitialized) {
+				Camera.SetScreenPort (0, (int)View.Bounds.Size.Width, 0, (int)View.Bounds.Size.Height, 1, 1000);
+				Camera.TargetPoint = new Rhino.Geometry.Point3d (0, 0, 0);
+				var plane = new Rhino.Geometry.Plane (Rhino.Geometry.Point3d.Origin, new Rhino.Geometry.Vector3d (-1, -1, -1));
+				Camera.SetCameraLocation(new Rhino.Geometry.Point3d (10, 10, 10));
+				var dir = new Rhino.Geometry.Vector3d (-1, -1, -1);
+				dir.Unitize ();
+				Camera.SetCameraDirection (dir);
+				Camera.SetCameraUp (plane.YAxis);
+				Camera.SetFrustum (-1, 1, -1, 1, 0.1, 1000);
+				Camera.FrustumAspect = Camera.ScreenPortAspect;
+				Camera.IsPerspectiveProjection = true;
+				Camera.Camera35mmLensLength = 50;
+				if (App.Manager.CurrentModel != null) {
+					if (App.Manager.CurrentModel.AllMeshes != null)
+						Camera.DollyExtents (App.Manager.CurrentModel.AllMeshes, 1.0);
+				}
+			}
+
+		}
+			
+		/// <summary>
+		/// Resizes the camera (to be called just before rotation as bounds width and height are swapped)
+		/// </summary>
+		protected void ResizeCamera ()
+		{
+			if (Camera == null)
+				return;
+
+			var newRectangle = View.Bounds;
+			Camera.SetScreenPort (0, (int)(newRectangle.Height - 1), 0, (int)(newRectangle.Width - 1), 0, 0);
+
+			double newPortAspect = (newRectangle.Size.Height / newRectangle.Size.Width);
+			Camera.FrustumAspect = newPortAspect;
+
+			if (App.Manager.CurrentModel != null)
+				SetFrustum (Camera, App.Manager.CurrentModel.BBox);
+
+			// Fix up viewport values
+			var cameraDir = Camera.CameraDirection;
+			cameraDir.Unitize ();
+			Camera.SetCameraDirection (cameraDir);
+
+			var cameraUp = Camera.CameraUp;
+			cameraUp.Unitize ();
+			Camera.SetCameraUp (cameraUp);
+
+			Renderer.Viewport = Camera;
+
+			GL.Viewport (0, 0, (int)newRectangle.Height, (int)newRectangle.Width);
+			NeedsRedraw = true;
+		}
+
+		/// <summary>
+		/// Dynamically set the frustum based on the clipping
+		/// </summary>
+		protected void SetFrustum (ViewportInfo viewport, Rhino.Geometry.BoundingBox bBox)
+		{
+			ClippingInfo clipping = new ClippingInfo();
+			clipping.bbox = bBox;
+			if (ClippingPlanes.CalcClippingPlanes (viewport, clipping))
+				ClippingPlanes.SetupFrustum (viewport, clipping);
+		}
+		#endregion
 
 		#region Model Initialization Events
 		private void ObserveMeshPrep (RMModel model, MeshPreparationProgress progress)
 		{
 			// Success
 			if (progress.PreparationDidSucceed) {
+
 				InitPrepView.InvokeOnMainThread (delegate {
 					InitPrepView.Hidden = true;
+					SetupCamera ();
+					EnableAllGestureRecognizers ();
+					NeedsRedraw = true;
+					FastDrawing = true;
+					View.SetNeedsDisplay ();
+					RedrawDetailed();
 					App.Manager.CurrentModel.MeshPrep -= new MeshPreparationHandler (ObserveMeshPrep);
 				});
+
 			}
 
 			// Still working
@@ -270,6 +582,293 @@ namespace HelloRhino.Touch
 		partial void CancelPrep (MonoTouch.Foundation.NSObject sender)
 		{
 			App.Manager.CurrentModel.CancelModelPreparation();
+		}
+		#endregion
+
+		#region GLKView and GLKViewController delegate methods
+		public override void Update ()
+		{
+			// Turn off Multisampling for FastDrawing ...
+			GLKView view = (GLKView)View;
+			view.DrawableMultisample = FastDrawing ? GLKViewDrawableMultisample.None : GLKViewDrawableMultisample.Sample4x;
+		}
+			
+		void Draw (object sender, GLKViewDrawEventArgs args)
+		{
+			//If Needs update...
+			if (App.Manager.CurrentModel.IsReadyForRendering) {
+				if (NeedsRedraw) {
+
+					if (IsInAnimatedRestoreView)
+						AnimateRestoreView ();
+						
+					// Draw...
+					Renderer.FastDrawing = true;
+					Renderer.RenderModel (App.Manager.CurrentModel, Camera);
+
+					// Unless we are in AnimatedRestoreView, we can stop updating on the draw loop
+					if (!IsInAnimatedRestoreView)
+						NeedsRedraw = false;
+				}
+			}
+		}
+		#endregion
+
+		#region Gesture Handling methods
+		/// <summary>
+		/// This view's owner (ModelView) receives the: ShouldRecognizeSimultaneouslyWithGestureRecognizer
+		/// callback for each of its delegates.  
+		/// </summary>
+		private void SetupGestureRecognizers ()
+		{
+			// Pinch - Zoom
+			ZoomRecognizer = new UIPinchGestureRecognizer (this, new Selector ("ZoomCameraWithGesture"));
+			ZoomRecognizer.Enabled = false;
+			ZoomRecognizer.Delegate = new GestureDelegate (this);
+			View.AddGestureRecognizer (ZoomRecognizer);
+
+			// Orbit & Dolly
+			OrbitDollyRecognizer = new OrbitDollyGestureRecognizer ();
+			OrbitDollyRecognizer.AddTarget (this, new Selector ("OrbitDollyCameraWithGesture"));
+			OrbitDollyRecognizer.MaximumNumberOfTouches = 2;
+			OrbitDollyRecognizer.Enabled = false;
+			OrbitDollyRecognizer.Delegate = new GestureDelegate (this);
+			View.AddGestureRecognizer (OrbitDollyRecognizer);
+
+			// Zoom Extents / Restore Last View
+			DoubleTapGestureRecognizer = new UITapGestureRecognizer ();
+			DoubleTapGestureRecognizer.AddTarget (this, new Selector ("ZoomExtentsWithGesture"));
+			DoubleTapGestureRecognizer.NumberOfTapsRequired = 2;
+			DoubleTapGestureRecognizer.Enabled = false;
+			View.AddGestureRecognizer (DoubleTapGestureRecognizer);
+		}
+
+		protected void EnableAllGestureRecognizers ()
+		{
+			foreach (UIGestureRecognizer recognizer in View.GestureRecognizers)
+				recognizer.Enabled = true;
+		}
+
+		protected void DisableAllGestureRecognizers ()
+		{
+			foreach (UIGestureRecognizer recognizer in View.GestureRecognizers)
+				recognizer.Enabled = false;
+		}
+
+		/// <summary>
+		/// ZoomExtentsWithGesture is called when a DoubleTapGesture is detected.
+		/// </summary>
+		[Export("ZoomExtentsWithGesture")]
+		private void ZoomExtentsWithGesture (UIGestureRecognizer gesture)
+		{
+			if (Camera == null)
+				return;
+
+			if (gesture.State == UIGestureRecognizerState.Ended) {
+
+				ShouldStartRestoreToInitialPosition = CameraIsAtInitialPosition;
+
+				ViewportInfo targetPosition = new ViewportInfo();
+
+				if (ShouldStartRestoreToInitialPosition) {
+					// animate from current position (which is initial position) back to last position
+					targetPosition = LastPosition;
+				} else {
+					// animate from current position to initial position
+					targetPosition = InitialPosition;
+					LastPosition = new ViewportInfo(Camera);
+				}
+
+				StartRestoreViewTo (targetPosition);
+			}
+		}
+
+		/// <summary>
+		/// ZoomCameraWithGesture is called in response to ZoomRecognizer events.
+		/// </summary>
+		[Export("ZoomCameraWithGesture")]
+		private void ZoomCameraWithGesture (UIPinchGestureRecognizer gesture)
+		{
+			if (Camera == null)
+				return;
+
+			if (gesture.State == UIGestureRecognizerState.Changed) {
+				if (gesture.NumberOfTouches > 1) {
+					FastDrawing = true;
+					System.Drawing.PointF zoomPoint = OrbitDollyRecognizer.MidpointLocation;
+					Camera.Magnify (View.Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint); 
+					gesture.Scale = 1.0f;
+				}
+
+				NeedsRedraw = true;
+				View.SetNeedsDisplay ();
+			}
+
+			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
+				if (gesture.NumberOfTouches == 0) {
+					FastDrawing = false;
+				}
+
+				NeedsRedraw = true;
+			}
+		}
+
+		/// <summary>
+		/// OrbitDollyCameraWithGesture is called in response to OrbitDollyRecognizer events.
+		/// </summary>
+		[Export("OrbitDollyCameraWithGesture")]
+		private void OrbitDollyCameraWithGesture (OrbitDollyGestureRecognizer gesture)
+		{
+			if (Camera == null)
+				return;
+
+			if (gesture.State == UIGestureRecognizerState.Changed) {
+				FastDrawing = true;
+				CameraIsAtInitialPosition = false;
+
+				if (gesture.HasSingleTouch) {
+					Camera.GestureOrbit (View.Bounds.Size.ToSize(), gesture.AnchorLocation, gesture.CurrentLocation);
+					gesture.AnchorLocation = gesture.CurrentLocation;
+				}
+
+				if (gesture.HasTwoTouches) {
+					Camera.LateralPan (gesture.StartLocation, gesture.MidpointLocation);
+					gesture.StartLocation = gesture.MidpointLocation;
+				}
+
+				NeedsRedraw = true;
+				View.SetNeedsDisplay ();
+			}
+
+			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
+				if (gesture.NumberOfTouches == 0)
+					FastDrawing = false;
+
+				NeedsRedraw = true;
+			}
+
+		}
+		#endregion
+
+		#region Animate Restore View
+		/// <summary>
+		/// StartRestoreViewTo is a helper method that is called by ZoomExtentsWithGesture to
+		/// return the viewport back to it's "home" view.
+		/// </summary>
+		private void StartRestoreViewTo (Rhino.DocObjects.ViewportInfo targetPosition)
+		{
+			if (Camera == null)
+				return;
+
+			IsInAnimatedRestoreView = true;
+			FastDrawing = true;
+			NeedsRedraw = true;
+
+			View.UserInteractionEnabled = false;
+			RestoreViewStartTime = DateTime.Now;
+			RestoreViewTotalTime = new TimeSpan (0, 0, 0, 0, 500);
+
+			RestoreViewStartViewport = new ViewportInfo(Camera); // start from current position
+			RestoreViewFinishViewport = new ViewportInfo(targetPosition); // end on the target position
+
+			// fix frustum aspect to match current screen aspect
+			RestoreViewFinishViewport.FrustumAspect = Camera.FrustumAspect;
+		}
+
+		/// <summary>
+		/// Tween from original view to 
+		/// </summary>
+		private void AnimateRestoreView ()
+		{
+			FastDrawing = true;
+			var restoreViewCurrentTime = DateTime.Now;																				
+
+			var currentTime = restoreViewCurrentTime;																						
+			var startTime = RestoreViewStartTime;																							
+			var timeElapsed = currentTime.Subtract (startTime);																	
+			var timeElapsedInMs = timeElapsed.TotalMilliseconds;																
+			var totalTimeOfAnimationInMs = RestoreViewTotalTime.TotalMilliseconds;						
+			double percentCompleted = timeElapsedInMs / totalTimeOfAnimationInMs;
+
+			if (percentCompleted > 1) {
+				// Animation is completed. Perform one last draw.
+				percentCompleted = 1;
+				IsInAnimatedRestoreView = false;
+				View.UserInteractionEnabled = true;
+				CameraIsAtInitialPosition = !ShouldStartRestoreToInitialPosition;
+			}
+
+			// Get some data from the starting view
+			Rhino.Geometry.Point3d sourceTarget = RestoreViewStartViewport.TargetPoint;
+			Rhino.Geometry.Point3d sourceCamera = RestoreViewStartViewport.CameraLocation;
+			double sourceDistance = sourceCamera.DistanceTo (sourceTarget);
+			Rhino.Geometry.Vector3d sourceUp = RestoreViewStartViewport.CameraUp;
+			sourceUp.Unitize ();
+
+			// Get some data from the ending view
+			Rhino.Geometry.Point3d targetTarget = RestoreViewFinishViewport.TargetPoint;
+			Rhino.Geometry.Point3d targetCamera = RestoreViewFinishViewport.CameraLocation;
+			double targetDistance = targetCamera.DistanceTo (targetTarget);
+			Rhino.Geometry.Vector3d targetCameraDir = targetCamera - targetTarget;
+			Rhino.Geometry.Vector3d targetUp = RestoreViewFinishViewport.CameraUp;
+			targetUp.Unitize ();
+
+			// Adjust the target camera location so that the starting camera to target distance
+			// and the ending camera to target distance are the same.  Doing this will calculate
+			// a constant rotational angular momentum when tweening the camera location.
+			// Further down we independently tween the camera to target distance.
+			targetCameraDir.Unitize ();
+			targetCameraDir *= sourceDistance;
+			targetCamera = targetCameraDir + targetTarget;
+
+			// calculate interim viewport values
+			double frameDistance = ViewportInfoExtensions.CosInterp(sourceDistance, targetDistance, percentCompleted);
+
+			Rhino.Geometry.Point3d frameTarget = new Rhino.Geometry.Point3d();
+
+			frameTarget.X = ViewportInfoExtensions.CosInterp(sourceTarget.X, targetTarget.X, percentCompleted);
+			frameTarget.Y = ViewportInfoExtensions.CosInterp(sourceTarget.Y, targetTarget.Y, percentCompleted);
+			frameTarget.Z = ViewportInfoExtensions.CosInterp(sourceTarget.Z, targetTarget.Z, percentCompleted);
+
+			var origin = Rhino.Geometry.Point3d.Origin;
+			Rhino.Geometry.Point3d frameCamera = origin + (ViewportInfoExtensions.Slerp((sourceCamera - origin), (targetCamera - origin), percentCompleted));
+			Rhino.Geometry.Vector3d frameCameraDir = frameCamera - frameTarget;
+
+			// adjust the camera location along the camera direction vector to preserve the target location and the camera distance
+			frameCameraDir.Unitize();
+			frameCameraDir *= frameDistance;
+			frameCamera = frameCameraDir + frameTarget;
+
+			Rhino.Geometry.Vector3d frameUp = new Rhino.Geometry.Vector3d(ViewportInfoExtensions.Slerp (sourceUp, targetUp, percentCompleted));
+
+			if (percentCompleted >= 1) {
+				// put the last redraw at the exact end point to eliminate any rounding errors
+				Camera.SetTarget (RestoreViewFinishViewport.TargetPoint, RestoreViewFinishViewport.CameraLocation, RestoreViewFinishViewport.CameraUp);
+			} else {	
+				Camera.SetTarget (frameTarget, frameCamera, frameUp);
+			}
+
+			SetFrustum (Camera, App.Manager.CurrentModel.BBox);
+
+			NeedsRedraw = true;
+
+			if (!IsInAnimatedRestoreView) {
+				// FastDrawing is still enabled and we just scheduled a draw of the model at the final location.
+				// This entirely completes the animation. Now schedule one more redraw of the model with FastDrawing disabled
+				// and this redraw will be done at exactly the same postion.  This prevents the final animation frame
+				// from jumping to the final location because the final draw will take longer with FastDrawing disabled.
+				PerformSelector (new Selector ("RedrawDetailed"), null, 0.05);
+			}
+		} 
+
+		/// <summary>
+		/// Redraw the final frame of an animation in "slow drawing" mode
+		/// </summary>
+		[Export("RedrawDetailed")]
+		private void RedrawDetailed ()
+		{
+			FastDrawing = false;
+			NeedsRedraw = true;
 		}
 		#endregion
 
