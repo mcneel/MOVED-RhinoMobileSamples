@@ -252,6 +252,9 @@ namespace HelloRhino.Droid
 				if (m_viewport == null && App.Manager.CurrentModel.IsReadyForRendering)
 					SetupViewport ();
 
+				// clear the view...
+				m_renderer.ClearView ();
+
 				// render the model...
 				m_renderer.RenderModel (App.Manager.CurrentModel, m_viewport);
 
