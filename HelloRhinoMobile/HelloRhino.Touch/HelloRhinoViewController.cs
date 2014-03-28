@@ -534,6 +534,7 @@ namespace HelloRhino.Touch
 		void Draw (object sender, GLKViewDrawEventArgs args)
 		{
 			Renderer.FastDrawing = true;
+			Renderer.ClearView ();
 			Renderer.RenderModel (App.Manager.CurrentModel, Camera);
 		}
 		#endregion
