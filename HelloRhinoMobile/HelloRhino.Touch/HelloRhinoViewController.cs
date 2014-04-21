@@ -737,7 +737,7 @@ namespace HelloRhino.Touch
 			// fix frustum aspect to match current screen aspect
 			RestoreViewFinishViewport.FrustumAspect = Camera.FrustumAspect;
 
-			AnimationTimer = NSTimer.CreateScheduledTimer (0.03, this, new Selector ("AnimateRestoreView"), null, true);
+			AnimationTimer = NSTimer.CreateScheduledTimer (0.0, this, new Selector ("AnimateRestoreView"), null, true);
 			AnimationTimer.Fire ();
 		}
 
