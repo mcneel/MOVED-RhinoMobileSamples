@@ -2,7 +2,6 @@ attribute vec4 rglVertex;
 attribute vec3 rglNormal;
 attribute vec4 rglColor;
 
-uniform mat4 rglModelViewProjectionMatrix;
 uniform mat4 rglProjectionMatrix;
 uniform mat4 rglModelViewMatrix;
 uniform mat3 rglNormalMatrix;
@@ -20,21 +19,25 @@ varying vec4 vSpecular;
 
 void main()
 {
-	vec3 eyeNormal = normalize(rglNormalMatrix * rglNormal);
-            
-  vec3 N = eyeNormal;
-	vec3 L = normalize( rglLightPosition );  // Assume directional light source...thus, pos = dir. 
-	vec3 H = normalize( L + vec3(0, 0, 1) ); // Half vector 
+	vec4 vView   = rglModelViewMatrix * rglVertex;
+  vec3 vNormal = rglNormalMatrix * rglNormal;
+  
+  if ( dot( -vView.xyz, vNormal ) < 0.0 )
+    vNormal = -vNormal;
+    
+  vec3 N = normalize( vNormal );
+  vec3 L = normalize( rglLightPosition );  // Assume directional light source...thus, pos = dir. 
+  vec3 H = normalize( L + vec3(0, 0, 1) ); // Half vector 
+  
+  float diff = max( 0.0, dot(N, L) );
+  float spec = max( 0.0, dot(N, H) );
 
-	float diff = max( 0.0, dot(N, L) );
-	float spec = max( 0.0, dot(N, H) );
-                                 
-	vDiffuse.rgb = rglLightDiffuse.rgb * rglDiffuse.rgb * diff;
-	vDiffuse.a   = rglDiffuse.a;
-	vSpecular    = rglLightSpecular * rglSpecular * pow( spec, rglShininess );
-	
-	if ( rglUsesColors )
-		vDiffuse.rgb *= rglColor.rgb;           
-	
-	gl_Position = rglModelViewProjectionMatrix * rglVertex;
+  vDiffuse.rgb = rglLightDiffuse.rgb * rglDiffuse.rgb * diff;
+  vDiffuse.a   = rglDiffuse.a;
+  vSpecular    = rglLightSpecular * rglSpecular * pow( spec, rglShininess );
+  	
+  if ( rglUsesColors )
+    vDiffuse.rgb *= rglColor.rgb;
+    
+  gl_Position = rglProjectionMatrix * vView;
 }

@@ -3,8 +3,6 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>12.0.0</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{B7FAECAD-244D-4AFE-871D-F73142FC86CA}</ProjectGuid>
     <ProjectTypeGuids>{EFBA0AD7-5A72-4C68-AF49-83D382785DCF};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
@@ -50,8 +48,8 @@
     <Compile Include="HelloRhinoActivity.cs" />
     <Compile Include="Application.cs" />
     <Compile Include="ZoomScaleListener.cs" />
-    <Compile Include="HelloRhinoView.cs" />
     <Compile Include="App.cs" />
+    <Compile Include="HelloRhinoView.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Properties\AndroidManifest.xml" />
@@ -68,23 +66,10 @@
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Novell\Novell.MonoDroid.CSharp.targets" />
   <ItemGroup>
-    <Folder Include="libs\" />
     <Folder Include="Assets\Models\" />
     <Folder Include="Assets\Shaders\" />
   </ItemGroup>
   <ItemGroup>
-    <AndroidNativeLibrary Include="libs\armeabi\libopennurbs.so">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </AndroidNativeLibrary>
-    <AndroidNativeLibrary Include="libs\armeabi-v7a\libopennurbs.so">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </AndroidNativeLibrary>
-    <AndroidNativeLibrary Include="libs\x86\libopennurbs.so">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </AndroidNativeLibrary>
-  </ItemGroup>
-  <ItemGroup>
-    <AndroidAsset Include="Assets\Models\Rhino Logo.3dm" />
     <AndroidAsset Include="Assets\Shaders\FullscreenQuad.fsh" />
     <AndroidAsset Include="Assets\Shaders\FullscreenQuad.vsh" />
     <AndroidAsset Include="Assets\Shaders\GradientQuad.fsh" />
@@ -95,6 +80,7 @@
     <AndroidAsset Include="Assets\Shaders\PerVertexLighting.vsh" />
     <AndroidAsset Include="Assets\Shaders\template.fsh" />
     <AndroidAsset Include="Assets\Shaders\template.vsh" />
+    <AndroidAsset Include="Assets\Models\Rhino Logo.3dm" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\RhinoMobile\RhinoMobile.Droid.csproj">

@@ -592,14 +592,14 @@ namespace HelloRhino.Touch
 		public void SetupGestureRecognizers ()
 		{
 			// Pinch - Zoom
-			ZoomRecognizer = new UIPinchGestureRecognizer (this, new Selector ("ZoomCameraWithGesture"));
+			ZoomRecognizer = new UIPinchGestureRecognizer (this, new Selector ("ZoomCameraWithGesture:"));
 			ZoomRecognizer.Enabled = false;
 			ZoomRecognizer.Delegate = new GestureDelegate (this);
 			View.AddGestureRecognizer (ZoomRecognizer);
 
 			// Orbit & Dolly
 			OrbitDollyRecognizer = new OrbitDollyGestureRecognizer ();
-			OrbitDollyRecognizer.AddTarget (this, new Selector ("OrbitDollyCameraWithGesture"));
+			OrbitDollyRecognizer.AddTarget (this, new Selector ("OrbitDollyCameraWithGesture:"));
 			OrbitDollyRecognizer.MaximumNumberOfTouches = 2;
 			OrbitDollyRecognizer.Enabled = false;
 			OrbitDollyRecognizer.Delegate = new GestureDelegate (this);
@@ -607,7 +607,7 @@ namespace HelloRhino.Touch
 
 			// Zoom Extents / Restore Last View
 			DoubleTapGestureRecognizer = new UITapGestureRecognizer ();
-			DoubleTapGestureRecognizer.AddTarget (this, new Selector ("ZoomExtentsWithGesture"));
+			DoubleTapGestureRecognizer.AddTarget (this, new Selector ("ZoomExtentsWithGesture:"));
 			DoubleTapGestureRecognizer.NumberOfTapsRequired = 2;
 			DoubleTapGestureRecognizer.Enabled = false;
 			View.AddGestureRecognizer (DoubleTapGestureRecognizer);
@@ -628,7 +628,7 @@ namespace HelloRhino.Touch
 		/// <summary>
 		/// ZoomExtentsWithGesture is called when a DoubleTapGesture is detected.
 		/// </summary>
-		[Export("ZoomExtentsWithGesture")]
+		[Export("ZoomExtentsWithGesture:")]
 		private void ZoomExtentsWithGesture (UIGestureRecognizer gesture)
 		{
 			if (Camera == null)
@@ -656,7 +656,7 @@ namespace HelloRhino.Touch
 		/// <summary>
 		/// ZoomCameraWithGesture is called in response to ZoomRecognizer events.
 		/// </summary>
-		[Export("ZoomCameraWithGesture")]
+		[Export("ZoomCameraWithGesture:")]
 		private void ZoomCameraWithGesture (UIPinchGestureRecognizer gesture)
 		{
 			if (Camera == null)
@@ -683,7 +683,7 @@ namespace HelloRhino.Touch
 		/// <summary>
 		/// OrbitDollyCameraWithGesture is called in response to OrbitDollyRecognizer events.
 		/// </summary>
-		[Export("OrbitDollyCameraWithGesture")]
+		[Export("OrbitDollyCameraWithGesture:")]
 		private void OrbitDollyCameraWithGesture (OrbitDollyGestureRecognizer gesture)
 		{
 			if (Camera == null)

@@ -3,8 +3,6 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">iPhoneSimulator</Platform>
-    <ProductVersion>12.0.0</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{FA17C6A3-C67A-4F17-90A3-0423B02007B5}</ProjectGuid>
     <ProjectTypeGuids>{6BC8ED88-2882-458C-8E55-DFD12B67127B};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <OutputType>Exe</OutputType>
@@ -22,7 +20,6 @@
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
     <MtouchDebug>true</MtouchDebug>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -33,7 +30,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -50,7 +46,6 @@
     <MtouchDebug>true</MtouchDebug>
     <ConsolePause>false</ConsolePause>
     <CodesignKey>iPhone Developer</CodesignKey>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -64,7 +59,6 @@
     <WarningLevel>4</WarningLevel>
     <CodesignKey>iPhone Developer</CodesignKey>
     <ConsolePause>false</ConsolePause>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -79,7 +73,6 @@
     <BuildIpa>true</BuildIpa>
     <ConsolePause>false</ConsolePause>
     <CodesignProvision>Automatic:AdHoc</CodesignProvision>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -93,7 +86,6 @@
     <CodesignKey>iPhone Distribution</CodesignKey>
     <ConsolePause>false</ConsolePause>
     <CodesignProvision>Automatic:AppStore</CodesignProvision>
-    <MtouchExtraArgs>-cxx -gcc_flags "-L${SolutionDir}/HelloRhino.Touch/libs/ -lopennurbs -force_load ${SolutionDir}/HelloRhino.Touch/libs/libopennurbs.a"</MtouchExtraArgs>
     <MtouchI18n>
     </MtouchI18n>
     <MtouchArch>ARMv7</MtouchArch>
@@ -108,7 +100,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Resources\" />
-    <Folder Include="libs\" />
     <Folder Include="Resources\Models\" />
     <Folder Include="Shaders\" />
   </ItemGroup>
@@ -157,13 +148,13 @@
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
+    <InterfaceDefinition Include="HelloRhinoViewController_iPhone.xib" />
+    <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\RhinoMobile\RhinoMobile.Touch.csproj">
       <Project>{022F5A8C-7A17-46D0-BCAD-EBB83305B20C}</Project>
       <Name>RhinoMobile.Touch</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <InterfaceDefinition Include="HelloRhinoViewController_iPhone.xib" />
-    <InterfaceDefinition Include="HelloRhinoViewController_iPad.xib" />
   </ItemGroup>
 </Project>
