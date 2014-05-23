@@ -33,6 +33,10 @@ namespace HelloRhino.Touch
 	[Register ("HelloRhinoViewController")]
 	public partial class HelloRhinoViewController : UIViewController, IDisposable
 	{
+		#region members
+		private int m_activeGesturesCount;
+		#endregion
+
 		#region properties
 		/// <value> This the EAGLContext controlled by the GLKViewController. </value>
 		protected EAGLContext Context { get; set; }
@@ -99,6 +103,19 @@ namespace HelloRhino.Touch
 		/// <value> True is an iPhone or iPodTouch, False if it's an iPad. </value>
 		private static bool UserInterfaceIdiomIsPhone {
 			get { return UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone; }
+		}
+
+		private int ActiveGesturesCount {
+			get {
+				return m_activeGesturesCount;
+			}
+
+			set {
+				m_activeGesturesCount = value;
+
+				if (m_activeGesturesCount == 0)
+					RedrawDetailed ();
+			}
 		}
 		#endregion
 
@@ -662,6 +679,9 @@ namespace HelloRhino.Touch
 			if (Camera == null)
 				return;
 
+			if (gesture.State == UIGestureRecognizerState.Began)
+				ActiveGesturesCount++;
+
 			if (gesture.State == UIGestureRecognizerState.Changed) {
 				if (gesture.NumberOfTouches > 1) {
 					FastDrawing = true;
@@ -673,11 +693,8 @@ namespace HelloRhino.Touch
 				View.SetNeedsDisplay ();
 			}
 
-			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
-				if (gesture.NumberOfTouches == 0) {
-					RedrawDetailed ();
-				}
-			}
+			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled)
+				ActiveGesturesCount--;
 		}
 
 		/// <summary>
@@ -688,6 +705,9 @@ namespace HelloRhino.Touch
 		{
 			if (Camera == null)
 				return;
+
+			if (gesture.State == UIGestureRecognizerState.Began)
+				ActiveGesturesCount++;
 
 			if (gesture.State == UIGestureRecognizerState.Changed) {
 				FastDrawing = true;
@@ -706,11 +726,8 @@ namespace HelloRhino.Touch
 				View.SetNeedsDisplay ();
 			}
 
-			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled) {
-				if (gesture.NumberOfTouches == 0) {
-					RedrawDetailed ();
-				}
-			}
+			if (gesture.State == UIGestureRecognizerState.Ended || gesture.State == UIGestureRecognizerState.Cancelled)
+				ActiveGesturesCount--;
 
 		}
 		#endregion
