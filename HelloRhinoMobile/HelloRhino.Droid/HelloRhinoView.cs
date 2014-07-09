@@ -256,7 +256,8 @@ namespace HelloRhino.Droid
 				m_renderer.ClearView ();
 
 				// render the model...
-				m_renderer.RenderModel (App.Manager.CurrentModel, m_viewport);
+        if (App.Manager.CurrentModel.IsReadyForRendering)
+				  m_renderer.RenderModel (App.Manager.CurrentModel, m_viewport);
 
 				SwapBuffers ();
 			}
