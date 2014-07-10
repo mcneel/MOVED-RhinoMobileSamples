@@ -686,7 +686,7 @@ namespace HelloRhino.Touch
 				if (gesture.NumberOfTouches > 1) {
 					FastDrawing = true;
 					PointF zoomPoint = OrbitDollyRecognizer.MidpointLocation;
-					Camera.Magnify (View.Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint); 
+					Camera.Magnify (View.Bounds.Size.ToSize(), gesture.Scale, 0, zoomPoint);
 					gesture.Scale = 1.0f;
 				}
 					
@@ -719,7 +719,7 @@ namespace HelloRhino.Touch
 				}
 
 				if (gesture.HasTwoTouches) {
-					Camera.LateralPan (gesture.StartLocation, gesture.MidpointLocation);
+          Camera.LateralPan (gesture.StartLocation, gesture.MidpointLocation, false, false);
 					gesture.StartLocation = gesture.MidpointLocation;
 				}
 					

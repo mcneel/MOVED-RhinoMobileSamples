@@ -32,10 +32,8 @@ namespace HelloRhino.Droid
 		{
 			m_view.m_scaleFactor *= detector.ScaleFactor;
 
-			PointF zoomPoint = new PointF (0, 0);
-
 			if (App.Manager.CurrentModel != null && App.Manager.CurrentModel.IsReadyForRendering) {
-				m_view.m_viewport.Magnify (m_view.Size, m_view.m_scaleFactor, 0, zoomPoint);
+        m_view.m_viewport.Magnify (m_view.Size, m_view.m_scaleFactor, 0, m_view.ZoomPoint);
 			}
 
 			m_view.m_scaleFactor = 1.0f;

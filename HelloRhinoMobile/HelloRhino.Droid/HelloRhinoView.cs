@@ -71,54 +71,54 @@ namespace HelloRhino.Droid
 		InitializationState m_initialized = InitializationState.Uninitialized;
 		ES2Renderer m_renderer;
 		uint m_depth_buffer_handle = Globals.UNSET_HANDLE;
-		int m_viewport_width, m_viewport_height;
-		int m_frameBufferWidth, m_frameBufferHeight;
-
-		private static readonly int InvalidPointerId = -1;
-		private readonly ScaleGestureDetector m_zoomDetector;
-		private int m_activePointerId = InvalidPointerId;
-		private System.Drawing.PointF m_lastTouchPoint;
-		private System.Drawing.PointF m_currentTouchPoint;
-		private float m_lastTouchX;
-		private float m_lastTouchY;
-		private float m_posX;
-		private float m_posY;
+    int m_viewport_width, m_viewport_height;
 
 		public float m_scaleFactor = 1.0f;
 		public ViewportInfo m_viewport;
 		#endregion
 
+    #region properties
+    public ScaleGestureDetector ZoomDetector { get; set; }
+
+    public OrbitDollyGestureDetector OrbitDollyDetector { get; set; }
+
+    /// <value> OpenGL ES 2.0 depth buffer handle </value>
+    public uint DepthBufferHandle
+    {
+      get { return m_depth_buffer_handle; }
+      set
+      {
+        if (m_depth_buffer_handle != Globals.UNSET_HANDLE && value != Globals.UNSET_HANDLE)
+          throw new Exception ("Attempting to overwrite a handle");
+        m_depth_buffer_handle = value;
+      }
+    }
+
+    public PointF ZoomPoint { get; private set; }
+    #endregion
+
 		#region constructors
 		public HelloRhinoView (Context context) : base (context)
 		{
-			m_zoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
+      ZoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
+      //ZoomDetector = new ScaleGestureDetector (context, new ScaleGestureDetector.SimpleOnScaleGestureListener ());
+      OrbitDollyDetector = new OrbitDollyGestureDetector ();
 		}
 
 		public HelloRhinoView (Context context, IAttributeSet attrs) : base (context, attrs)
 		{
-			m_zoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
+      ZoomDetector = new ScaleGestureDetector(context, new ZoomScaleListener(this));
+      //ZoomDetector = new ScaleGestureDetector (context, new ScaleGestureDetector.SimpleOnScaleGestureListener ());
+      OrbitDollyDetector = new OrbitDollyGestureDetector ();
 		}
 
-		public HelloRhinoView (IntPtr handle, Android.Runtime.JniHandleOwnership transfer)
-			: base (handle, transfer)
+		public HelloRhinoView (IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base (handle, transfer)
 		{
 
 		}
 		#endregion
 
-		#region properties
-		/// <value> OpenGL ES 2.0 depth buffer handle </value>
-		public uint DepthBufferHandle
-		{
-			get { return m_depth_buffer_handle; }
-			set
-			{
-				if (m_depth_buffer_handle != Globals.UNSET_HANDLE && value != Globals.UNSET_HANDLE)
-					throw new Exception ("Attempting to overwrite a handle");
-				m_depth_buffer_handle = value;
-			}
-		}
-		#endregion
+		
 
 		#region methods
 		/// <summary>
@@ -206,10 +206,7 @@ namespace HelloRhino.Droid
 
 				GL.BindRenderbuffer (RenderbufferTarget.Renderbuffer, DepthBufferHandle);
 				GL.RenderbufferStorage (RenderbufferTarget.Renderbuffer, RenderbufferInternalFormat.DepthComponent16, Size.Width, Size.Height);
-				GL.FramebufferRenderbuffer (FramebufferTarget.Framebuffer, FramebufferSlot.DepthAttachment, RenderbufferTarget.Renderbuffer, DepthBufferHandle);
-
-				m_frameBufferWidth = (int)(Size.Width);
-				m_frameBufferHeight = (int)(Size.Height);
+        GL.FramebufferRenderbuffer (FramebufferTarget.Framebuffer, FramebufferSlot.DepthAttachment, RenderbufferTarget.Renderbuffer, DepthBufferHandle);
 
 				// Initialize and setup some start states...
 				MakeCurrent ();
@@ -252,6 +249,8 @@ namespace HelloRhino.Droid
 				if (m_viewport == null && App.Manager.CurrentModel.IsReadyForRendering)
 					SetupViewport ();
 
+        m_renderer.FastDrawing = true;
+
 				// clear the view...
 				m_renderer.ClearView ();
 
@@ -283,14 +282,17 @@ namespace HelloRhino.Droid
 						viewInitialized = true;
 						m_viewport = view.Viewport;
 						m_viewport.TargetPoint = view.Viewport.TargetPoint;
+            m_viewport.SetScreenPort (0, Size.Width, 0, Size.Height, 1, 1000);
+            m_viewport.FrustumAspect = m_viewport.ScreenPortAspect;
+            m_viewport.SetFrustumNearFar (App.Manager.CurrentModel.BBox);
 						break;
 					}
 				}
 			}
-
+        
 			// If there isn't one, then cook up a viewport from scratch...
 			if (!viewInitialized) {
-				m_viewport.SetScreenPort (0, m_frameBufferWidth, 0, m_frameBufferHeight, 1, 1000);
+        m_viewport.SetScreenPort (0, Size.Width, 0, Size.Height, 1, 1000);
 				m_viewport.TargetPoint = new Rhino.Geometry.Point3d (0, 0, 0);
 				var plane = new Rhino.Geometry.Plane (Rhino.Geometry.Point3d.Origin, new Rhino.Geometry.Vector3d (-1, -1, -1));
 				m_viewport.SetCameraLocation(new Rhino.Geometry.Point3d (10, 10, 10));
@@ -434,70 +436,27 @@ namespace HelloRhino.Droid
 		/// </summary>
 		public override bool OnTouchEvent (MotionEvent e)
 		{
-			m_zoomDetector.OnTouchEvent(e);
+			ZoomDetector.OnTouchEvent(e);
+      OrbitDollyDetector.OnTouchEvent (e);
 
-			// ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
-			MotionEventActions action = e.Action & MotionEventActions.Mask;
-			int pointerIndex;
+      if (OrbitDollyDetector.State == GestureDetectorState.Changed) {
+        if (OrbitDollyDetector.HasSingleFinger) {
+          m_viewport.GestureOrbit (Size, OrbitDollyDetector.AnchorLocation, OrbitDollyDetector.CurrentLocation); //new Size (Size.Width/2, Size.Height/2)
+          OrbitDollyDetector.AnchorLocation = OrbitDollyDetector.CurrentLocation;
+        }
 
-			switch (action)
-			{
-			case MotionEventActions.Down:
-				m_lastTouchX = e.GetX ();
-				m_lastTouchY = e.GetY ();
-				m_lastTouchPoint = new System.Drawing.PointF (m_lastTouchX, m_lastTouchY);
-				m_activePointerId = e.GetPointerId(0);
-				break;
+        if (OrbitDollyDetector.HasTwoFingers) {
+          m_viewport.LateralPan (OrbitDollyDetector.StartLocation, OrbitDollyDetector.MidpointLocation, false, true);
+          OrbitDollyDetector.StartLocation = OrbitDollyDetector.MidpointLocation;
+        }
+      }
 
-			case MotionEventActions.Move:
-				pointerIndex = e.FindPointerIndex (m_activePointerId);
-				float x = e.GetX (pointerIndex);
-				float y = e.GetY (pointerIndex);
-				m_currentTouchPoint = new System.Drawing.Point ((int)x, (int)y);
+      ZoomPoint = OrbitDollyDetector.MidpointLocation;
 
-				if (!m_zoomDetector.IsInProgress)
-				{
-					// Only move the ScaleGestureDetector isn't already processing a gesture.
-					float deltaX = x - m_lastTouchX;
-					float deltaY = y - m_lastTouchY;
-					m_posX += deltaX;
-					m_posY += deltaY;
+      Invalidate ();
 
-					if (App.Manager.CurrentModel != null && App.Manager.CurrentModel.IsReadyForRendering) {
-						m_viewport.GestureOrbit (this.Size, m_lastTouchPoint, m_currentTouchPoint);
-					}
-
-					m_lastTouchPoint = m_currentTouchPoint;
-
-					Invalidate();
-				}
-
-				m_lastTouchX = x;
-				m_lastTouchY = y;
-				break;
-
-			case MotionEventActions.Up:
-			case MotionEventActions.Cancel:
-				// We no longer need to keep track of the active pointer.
-				m_activePointerId = InvalidPointerId;
-				break;
-
-			case MotionEventActions.PointerUp:
-				// check to make sure that the pointer that went up is for the gesture we're tracking. 
-				pointerIndex = (int) (e.Action & MotionEventActions.PointerIndexMask) >> (int) MotionEventActions.PointerIndexShift;
-				int pointerId = e.GetPointerId(pointerIndex);
-				if (pointerId == m_activePointerId)
-				{
-					// This was our active pointer going up. Choose a new action pointer and adjust accordingly
-					int newPointerIndex = pointerIndex == 0 ? 1 : 0;
-					m_lastTouchX = e.GetX(newPointerIndex);
-					m_lastTouchY = e.GetY(newPointerIndex);
-					m_activePointerId = e.GetPointerId(newPointerIndex);
-				}
-				break;
-
-			}
 			return true;
+
 		}
 		#endregion
 

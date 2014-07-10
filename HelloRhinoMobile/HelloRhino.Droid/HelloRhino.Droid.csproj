@@ -51,9 +51,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HelloRhinoActivity.cs" />
     <Compile Include="Application.cs" />
-    <Compile Include="ZoomScaleListener.cs" />
     <Compile Include="App.cs" />
     <Compile Include="HelloRhinoView.cs" />
+    <Compile Include="OrbitDollyGestureDetector.cs" />
+    <Compile Include="ZoomScaleListener.cs" />
   </ItemGroup>
   <ItemGroup>
     <AndroidResource Include="Resources\layout\Main.axml" />
