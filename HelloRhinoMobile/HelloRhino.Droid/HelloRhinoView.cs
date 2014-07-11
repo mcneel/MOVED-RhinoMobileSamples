@@ -436,6 +436,9 @@ namespace HelloRhino.Droid
 		/// </summary>
 		public override bool OnTouchEvent (MotionEvent e)
 		{
+      if (App.Manager.CurrentModel == null || !App.Manager.CurrentModel.IsReadyForRendering)
+        return false;
+
 			ZoomDetector.OnTouchEvent(e);
       OrbitDollyDetector.OnTouchEvent (e);
 

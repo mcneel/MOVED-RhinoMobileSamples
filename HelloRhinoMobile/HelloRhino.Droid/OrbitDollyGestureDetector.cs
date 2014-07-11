@@ -26,10 +26,6 @@ namespace HelloRhino.Droid
 
   public class OrbitDollyGestureDetector : GestureDetector
   {
-    #region members
-
-    #endregion
-
     #region properties
     /// <value> The current state of the gesture detector. </value>
     public GestureDetectorState State { get; private set; }
@@ -125,14 +121,15 @@ namespace HelloRhino.Droid
           HasTwoFingers = false;
           HasMoreThanTwoFingers = true;
           Debug.WriteLine ("More than two fingers down with new finger Id = {0}  IGNORING", ev.ActionIndex);
-          Reset ();
           break;
         }
         break;
 
       case MotionEventActions.Move:
-        pointerIndex = ev.FindPointerIndex (TrackingFingerId);
-        CurrentLocation = new PointF (ev.GetX (pointerIndex), ev.GetY (pointerIndex));
+        if (HasSingleFinger || HasTwoFingers) {
+          pointerIndex = ev.FindPointerIndex (TrackingFingerId);
+          CurrentLocation = new PointF (ev.GetX (pointerIndex), ev.GetY (pointerIndex));
+        }
 
         if (HasTwoFingers) {
           var trackingFingerLocation = new PointF (ev.GetX (TrackingFingerId), ev.GetY (TrackingFingerId));
