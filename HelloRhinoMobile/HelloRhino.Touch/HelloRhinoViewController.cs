@@ -35,6 +35,7 @@ namespace HelloRhino.Touch
 	{
 		#region members
 		private int m_activeGesturesCount;
+    private bool m_fastDrawing;
 		#endregion
 
 		#region properties
@@ -90,7 +91,6 @@ namespace HelloRhino.Touch
 		public bool IsInAnimatedRestoreView { get; private set; }
 
 		/// <value> Determines which mode we are in, fast or high-quality drawing. </value>
-		private bool m_fastDrawing;
 		private bool FastDrawing { 
 			get { return m_fastDrawing; }
 
@@ -105,6 +105,7 @@ namespace HelloRhino.Touch
 			get { return UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Phone; }
 		}
 
+    /// <value> A count of the active number of gesture recognizers currently firing. </value>
 		private int ActiveGesturesCount {
 			get {
 				return m_activeGesturesCount;
@@ -317,7 +318,7 @@ namespace HelloRhino.Touch
 		}
 		#endregion
 
-		#region Camera Setup
+		#region Camera Setup methods
 		/// <summary>
 		/// Initializes the camera on load...
 		/// </summary>

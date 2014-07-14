@@ -14,6 +14,7 @@
     <AndroidResgenClass>Resource</AndroidResgenClass>
     <MonoAndroidResourcePrefix>Resources</MonoAndroidResourcePrefix>
     <MonoAndroidAssetsPrefix>Assets</MonoAndroidAssetsPrefix>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -50,11 +51,12 @@
     <Compile Include="Resources\Resource.designer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HelloRhinoActivity.cs" />
-    <Compile Include="Application.cs" />
     <Compile Include="App.cs" />
     <Compile Include="HelloRhinoView.cs" />
     <Compile Include="OrbitDollyGestureDetector.cs" />
     <Compile Include="ZoomScaleListener.cs" />
+    <Compile Include="HelloRhinoAndroidRenderer.cs" />
+    <Compile Include="DoubleTapListener.cs" />
   </ItemGroup>
   <ItemGroup>
     <AndroidResource Include="Resources\layout\Main.axml" />

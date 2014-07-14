@@ -16,70 +16,87 @@ using Android.OS;
 using Android.Content.PM;
 using Android.Widget;
 using Android.Views;
+using Android.Opengl;
 
 using RhinoMobile;
 using RhinoMobile.Model;
 
+
 namespace HelloRhino.Droid
 {
-	[Activity(Label = "HelloRhino", ConfigurationChanges=ConfigChanges.Orientation | ConfigChanges.KeyboardHidden, MainLauncher = true)]
+  // These following ConfigurationChanges flags keep the EGL context from being destroyed when the device is rotated 
+  // or the keyboard is displayed (these are the recommended settings for GL-based activities)
+  [Activity(Label = "HelloRhino", ConfigurationChanges=ConfigChanges.Orientation | ConfigChanges.KeyboardHidden | ConfigChanges.ScreenSize, MainLauncher = true)]
 	public class HelloRhinoActivity : Activity
 	{ 
+    #region properties
+    private GLSurfaceView SurfaceView { get; set; }
+    #endregion
+
 		#region methods
-		/// <summary>
-		/// OnCreate is called by Android when this activity is created
-		/// </summary>
-		protected override void OnCreate(Bundle savedInstanceState)
-		{
-			base.OnCreate(savedInstanceState);
+    /// <summary>
+    /// OnCreate is called by Android when this activity is created
+    /// </summary>
+    protected override void OnCreate (Bundle savedInstanceState)
+    {
+      base.OnCreate (savedInstanceState);
 
-			SetContentView (Resource.Layout.Main);
+      App.Manager.ApplicationContext = base.ApplicationContext;
 
-			FindViewById (Resource.Id.hellorhinoview);
+      App.Manager.Setup ();
 
-			var intLayout = FindViewById<RelativeLayout> (Resource.Id.relLayout1);
-			if (App.Manager.CurrentModel.IsReadyForRendering) {
-				RunOnUiThread (() => intLayout.Visibility = ViewStates.Invisible);
-			} else {
-				RunOnUiThread (() => intLayout.Visibility = ViewStates.Visible);
-			}
+      // Create a GLSurfaceView instance and set it
+      // as the ContentView for this Activity
+      SurfaceView = new HelloRhinoView (this, null);
+      SetContentView (Resource.Layout.Main);
 
-			var warningImage = FindViewById<ImageView> (Resource.Id.imageView1);
-			RunOnUiThread (() => warningImage.Visibility = ViewStates.Invisible);
+      FindViewById (Resource.Id.hellorhinoview);
+     
+      var intLayout = FindViewById<RelativeLayout> (Resource.Id.relLayout1);
+      if (App.Manager.CurrentModel.IsReadyForRendering) {
+        RunOnUiThread (() => intLayout.Visibility = ViewStates.Invisible);
+      } else {
+        RunOnUiThread (() => intLayout.Visibility = ViewStates.Visible);
+      }
 
-			var cancelButton = FindViewById<Button> (Resource.Id.cancelButton);
-			cancelButton.Click += (sender, e) => App.Manager.CurrentModel.CancelModelPreparation ();
+      var warningImage = FindViewById<ImageView> (Resource.Id.imageView1);
+      RunOnUiThread (() => warningImage.Visibility = ViewStates.Invisible);
 
-			// Tell the model to prepare itself for display...
-			App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
-		}
+      var cancelButton = FindViewById<Button> (Resource.Id.cancelButton);
+      cancelButton.Click += (sender, e) => App.Manager.CurrentModel.CancelModelPreparation ();
 
-		/// <summary>
-		/// OnPause is called by Android just before this activity is about to be paused
-		/// </summary>
-		protected override void OnPause ()
-		{
-			// never forget to do this!
-			base.OnPause ();
-			var view = FindViewById<HelloRhinoView> (Resource.Id.hellorhinoview);
-			view.Pause ();
-		}
+      // Tell the model to prepare itself for display...
+      App.Manager.CurrentModel.MeshPrep += new MeshPreparationHandler (ObserveMeshPrep);
 
-		/// <summary>
-		/// OnResume is called by Android when thiu activity is brought to the "foreground"
-		/// </summary>
-		protected override void OnResume ()
-		{
-			// never forget to do this!
-			base.OnResume ();
-			var view = FindViewById<HelloRhinoView> (Resource.Id.hellorhinoview);
-			view.Resume ();
-		}
+      // Tell the model to prepare itself for display...
+      if (!App.Manager.CurrentModel.IsReadyForRendering)
+        App.Manager.CurrentModel.Prepare ();
+    }
 
-		protected override void OnStart ()
-		{
-			base.OnStart ();
-		}
+    /// <summary>
+    /// The following call pauses the rendering thread.
+    /// If your OpenGL application is memory intensive,
+    /// you should consider de-allocating objects that
+    /// consume significant memory here.
+    /// </summary>
+    protected override void OnPause ()
+    {
+      base.OnPause ();
+     
+      SurfaceView.OnPause ();
+    }
+      
+    /// <summary>
+    /// The following call resumes a paused rendering thread.
+    /// If you de-allocated graphic objects for onPause()
+    /// this is a good place to re-allocate them.
+    /// </summary>
+    protected override void OnResume ()
+    {
+      base.OnResume ();
+
+      SurfaceView.OnResume ();
+    }
 		#endregion
 
 		#region Model Initialization Events

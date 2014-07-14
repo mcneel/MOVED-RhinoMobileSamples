@@ -16,32 +16,31 @@ namespace HelloRhino.Droid
 {
 	class ZoomScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener
 	{
-		#region members
-		private readonly HelloRhinoView m_view;
-		#endregion
+    #region properties
+    private HelloRhinoAndroidRenderer AndroidRenderer { get; set; }
+    #endregion
 
 		#region constructors
-		public ZoomScaleListener(HelloRhinoView view)
+    public ZoomScaleListener(HelloRhinoAndroidRenderer androidRenderer)
 		{
-			m_view = view;
+      AndroidRenderer = androidRenderer;
 		}
 		#endregion
 
 		#region methods
 		public override bool OnScale(ScaleGestureDetector detector)
 		{
-			m_view.m_scaleFactor *= detector.ScaleFactor;
+      AndroidRenderer.ScaleFactor *= detector.ScaleFactor;
 
 			if (App.Manager.CurrentModel != null && App.Manager.CurrentModel.IsReadyForRendering) {
-        m_view.m_viewport.Magnify (m_view.Size, m_view.m_scaleFactor, 0, m_view.ZoomPoint);
+        AndroidRenderer.Camera.Magnify (AndroidRenderer.BufferSize, AndroidRenderer.ScaleFactor, 0, AndroidRenderer.ZoomPoint);
 			}
 
-			m_view.m_scaleFactor = 1.0f;
+      AndroidRenderer.ScaleFactor = 1.0f;
 
 			return true;
 		}
 		#endregion
-
 	}
 }
 

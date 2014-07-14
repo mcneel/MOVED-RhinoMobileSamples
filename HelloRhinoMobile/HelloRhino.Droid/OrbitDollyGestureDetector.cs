@@ -94,14 +94,14 @@ namespace HelloRhino.Droid
         AnchorLocation = new PointF (ev.GetX (TrackingFingerId), ev.GetY (TrackingFingerId));
         UserHasBegunGesture = true;
         State = GestureDetectorState.Began;
-        Debug.WriteLine ("Primary Finger Down with Id = {0}", TrackingFingerId);
+        //Debug.WriteLine ("Primary Finger Down with Id = {0}", TrackingFingerId);
         break;
 
       case MotionEventActions.PointerDown: // Secondary Finger(s)...        
 
         if (ev.PointerCount == 2) {
           SecondFingerId = ev.ActionIndex;
-          Debug.WriteLine ("Second Finger Down with Id = {0}", SecondFingerId);
+          //Debug.WriteLine ("Second Finger Down with Id = {0}", SecondFingerId);
           HasSingleFinger = false;
           HasTwoFingers = true;
           HasMoreThanTwoFingers = false;
@@ -120,7 +120,7 @@ namespace HelloRhino.Droid
           HasSingleFinger = false;
           HasTwoFingers = false;
           HasMoreThanTwoFingers = true;
-          Debug.WriteLine ("More than two fingers down with new finger Id = {0}  IGNORING", ev.ActionIndex);
+          //Debug.WriteLine ("More than two fingers down with new finger Id = {0}  IGNORING", ev.ActionIndex);
           break;
         }
         break;
@@ -151,14 +151,14 @@ namespace HelloRhino.Droid
 
       case MotionEventActions.Up:
         TrackingFingerId = InvalidFingerId;
-        Debug.WriteLine ("All Fingers Up, Gesture Ended");
+        //Debug.WriteLine ("All Fingers Up, Gesture Ended");
         Reset ();
         State = GestureDetectorState.Ended;
         break;
 
       case MotionEventActions.PointerUp:
         fingersRemaining = ev.PointerCount - 1;
-        Debug.WriteLine ("Secondary Finger Up, fingers remaining = {0}", fingersRemaining);
+        //Debug.WriteLine ("Secondary Finger Up, fingers remaining = {0}", fingersRemaining);
 
         if (fingersRemaining == 1) {
           // check to make sure that the finger that went up is for the gesture we're tracking. 
