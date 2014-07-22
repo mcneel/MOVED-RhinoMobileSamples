@@ -75,8 +75,6 @@ namespace HelloRhino.Droid
       OrbitDollyDetector = new OrbitDollyGestureDetector ();
       DoubleTapDetector = new GestureDetector (new DoubleTapListener (AndroidRenderer));
       DoubleTapDetector.SetOnDoubleTapListener(new DoubleTapListener (AndroidRenderer));
-
-
     }
     #endregion
 

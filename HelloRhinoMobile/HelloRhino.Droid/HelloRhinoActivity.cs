@@ -45,12 +45,10 @@ namespace HelloRhino.Droid
 
       App.Manager.Setup ();
 
-      // Create a GLSurfaceView instance and set it
-      // as the ContentView for this Activity
-      SurfaceView = new HelloRhinoView (this, null);
+      // The SurfaceView is inflated from the layout file when the ContentView is set...
       SetContentView (Resource.Layout.Main);
-
-      FindViewById (Resource.Id.hellorhinoview);
+      // ...we can then hold onto a reference to that view using its id
+      SurfaceView = FindViewById<GLSurfaceView> (Resource.Id.hellorhinoview);
      
       var intLayout = FindViewById<RelativeLayout> (Resource.Id.relLayout1);
       if (App.Manager.CurrentModel.IsReadyForRendering) {
