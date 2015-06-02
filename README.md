@@ -13,6 +13,10 @@ Contents
 1. HelloRhinoMobile: Open a 3dm and draw it to the screen.  Manipulate the view with gestures.
 2. ListLayers (coming soon): Read a 3dm and write the layer names into a standard list.
 
+Issues
+-------
+Issues tracking is disabled for this repository.  Please report issues using [McNeel's YouTrack tracker](http://mcneel.myjetbrains.com/youtrack/) in the Rhino Viewer (RV) project.
+
 Authors
 -------
 The entire McNeel programming staff (http://www.mcneel.com)
