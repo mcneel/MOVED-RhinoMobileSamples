@@ -14,9 +14,6 @@ varying vec4  vColor;
 void main()
 {
   vec3 N = normalize( vNormal );
-  
-  if ( !gl_FrontFacing )
-    N = -N;
     
   vec3 L = normalize( rglLightPosition );
   vec3 H = normalize( L + vec3(0, 0, 1) );
